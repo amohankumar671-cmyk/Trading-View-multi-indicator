@@ -1,0 +1,300 @@
+//@version=6
+// Modular overlay suite. Turn each module on/off in "1) Enable modules".
+// RSI lives on the price chart as markers + dashboard values (TradingView allows one pane per script).
+indicator("CPR / VWAP / Camarilla / MA / RSI / Supertrend", overlay = true, max_lines_count = 100, max_labels_count = 50, max_boxes_count = 50)
+
+// ─────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────
+maValue(float src, int len, string kind) =>
+    switch kind
+        "EMA"  => ta.ema(src, len)
+        "WMA"  => ta.wma(src, len)
+        "HMA"  => ta.hma(src, len)
+        "VWMA" => ta.vwma(src, len)
+        "RMA"  => ta.rma(src, len)
+        => ta.sma(src, len)
+
+// Calculate the expression on the chosen timeframe (blank TF = chart).
+mtfMa(float src, int len, string kind, string tf) =>
+    tf == "" or tf == timeframe.period ? maValue(src, len, kind) : request.security(syminfo.tickerid, tf, maValue(src, len, kind), barmerge.gaps_off, barmerge.lookahead_off)
+
+mtfRsi(int len, string tf) =>
+    tf == "" or tf == timeframe.period ? ta.rsi(close, len) : request.security(syminfo.tickerid, tf, ta.rsi(close, len), barmerge.gaps_off, barmerge.lookahead_off)
+
+f_sessionReset() =>
+    ta.change(time("D")) != 0
+
+// ─────────────────────────────────────────────
+// Master toggles
+// ─────────────────────────────────────────────
+gMaster = "1) Enable modules"
+showCPR     = input.bool(true,  "CPR (Central Pivot Range)", group = gMaster)
+showVWAP    = input.bool(true,  "VWAP",                      group = gMaster)
+showCam     = input.bool(true,  "Camarilla pivots",          group = gMaster)
+showMA      = input.bool(true,  "Moving averages (MTF)",     group = gMaster)
+showRSI     = input.bool(true,  "RSI",                       group = gMaster)
+showST      = input.bool(true,  "Supertrend",                group = gMaster)
+showDash    = input.bool(true,  "Dashboard table",           group = gMaster)
+
+// ─────────────────────────────────────────────
+// CPR
+// ─────────────────────────────────────────────
+gCPR = "2) CPR"
+cprTf       = input.timeframe("D", "CPR timeframe", group = gCPR, tooltip = "Levels are built from the previous completed bar of this timeframe (Daily is typical).")
+cprShowTC   = input.bool(true,  "Show CPR top (TC)",     group = gCPR)
+cprShowPiv  = input.bool(true,  "Show central pivot",    group = gCPR)
+cprShowBC   = input.bool(true,  "Show CPR bottom (BC)",  group = gCPR)
+cprFill     = input.bool(true,  "Fill CPR zone",         group = gCPR)
+cprColTC    = input.color(color.new(#00bcd4, 0), "TC color",     group = gCPR, inline = "cprC")
+cprColPiv   = input.color(color.new(#ffeb3b, 0), "Pivot color",  group = gCPR, inline = "cprC")
+cprColBC    = input.color(color.new(#e91e63, 0), "BC color",     group = gCPR, inline = "cprC")
+cprFillCol  = input.color(color.new(#00bcd4, 85), "Zone fill",   group = gCPR)
+cprWidth    = input.int(2, "CPR line width", minval = 1, maxval = 5, group = gCPR)
+
+[ph, pl, pc] = request.security(syminfo.tickerid, cprTf, [high[1], low[1], close[1]], barmerge.gaps_off, barmerge.lookahead_on)
+cprPivot = (ph + pl + pc) / 3.0
+cprBCRaw = (ph + pl) / 2.0
+cprTCRaw = cprPivot - cprBCRaw + cprPivot
+cprTop   = math.max(cprTCRaw, cprBCRaw)
+cprBot   = math.min(cprTCRaw, cprBCRaw)
+
+pCprTop = plot(showCPR and cprShowTC ? cprTop : na, "CPR TC", color = cprColTC, linewidth = cprWidth, style = plot.style_stepline)
+pCprPiv = plot(showCPR and cprShowPiv ? cprPivot : na, "CPR Pivot", color = cprColPiv, linewidth = cprWidth, style = plot.style_stepline)
+pCprBot = plot(showCPR and cprShowBC ? cprBot : na, "CPR BC", color = cprColBC, linewidth = cprWidth, style = plot.style_stepline)
+fill(pCprTop, pCprBot, color = showCPR and cprFill ? cprFillCol : na, title = "CPR fill")
+
+// ─────────────────────────────────────────────
+// VWAP
+// ─────────────────────────────────────────────
+gVWAP = "3) VWAP"
+vwapSrc      = input.source(hlc3, "VWAP source", group = gVWAP)
+vwapShowBand = input.bool(true, "Show standard-deviation bands", group = gVWAP)
+vwapMult1    = input.float(1.0, "Band 1 multiplier", minval = 0.1, step = 0.1, group = gVWAP)
+vwapMult2    = input.float(2.0, "Band 2 multiplier", minval = 0.1, step = 0.1, group = gVWAP)
+vwapCol      = input.color(color.new(#2196f3, 0), "VWAP color", group = gVWAP)
+vwapBandCol  = input.color(color.new(#2196f3, 75), "Band fill", group = gVWAP)
+vwapWidth    = input.int(2, "VWAP width", minval = 1, maxval = 5, group = gVWAP)
+
+var float v_sumPV  = 0.0
+var float v_sumV   = 0.0
+var float v_sumP2V = 0.0
+vol = nz(volume)
+if f_sessionReset()
+    v_sumPV  := vwapSrc * vol
+    v_sumV   := vol
+    v_sumP2V := vwapSrc * vwapSrc * vol
+else
+    v_sumPV  += vwapSrc * vol
+    v_sumV   += vol
+    v_sumP2V += vwapSrc * vwapSrc * vol
+
+vwapVal = v_sumV == 0 ? vwapSrc : v_sumPV / v_sumV
+vwapVar = v_sumV == 0 ? 0.0 : math.max(v_sumP2V / v_sumV - vwapVal * vwapVal, 0.0)
+vwapSd  = math.sqrt(vwapVar)
+vwapU1  = vwapVal + vwapSd * vwapMult1
+vwapL1  = vwapVal - vwapSd * vwapMult1
+vwapU2  = vwapVal + vwapSd * vwapMult2
+vwapL2  = vwapVal - vwapSd * vwapMult2
+
+pVwap = plot(showVWAP ? vwapVal : na, "VWAP", color = vwapCol, linewidth = vwapWidth)
+pVu1  = plot(showVWAP and vwapShowBand ? vwapU1 : na, "VWAP +1σ", color = color.new(vwapCol, 40), linewidth = 1)
+pVl1  = plot(showVWAP and vwapShowBand ? vwapL1 : na, "VWAP −1σ", color = color.new(vwapCol, 40), linewidth = 1)
+pVu2  = plot(showVWAP and vwapShowBand ? vwapU2 : na, "VWAP +2σ", color = color.new(vwapCol, 60), linewidth = 1, style = plot.style_circles)
+pVl2  = plot(showVWAP and vwapShowBand ? vwapL2 : na, "VWAP −2σ", color = color.new(vwapCol, 60), linewidth = 1, style = plot.style_circles)
+fill(pVu1, pVl1, color = showVWAP and vwapShowBand ? vwapBandCol : na, title = "VWAP ±1σ fill")
+
+// ─────────────────────────────────────────────
+// Camarilla
+// ─────────────────────────────────────────────
+gCam = "4) Camarilla pivots"
+camTf     = input.timeframe("D", "Camarilla timeframe", group = gCam)
+camShowH4 = input.bool(true,  "H4 / L4 (breakout)", group = gCam)
+camShowH3 = input.bool(true,  "H3 / L3 (reversal)", group = gCam)
+camShowH2 = input.bool(false, "H2 / L2",            group = gCam)
+camShowH1 = input.bool(false, "H1 / L1",            group = gCam)
+camShowH5 = input.bool(false, "H5 / L5",            group = gCam)
+camShowPP = input.bool(false, "Classic pivot (PP)", group = gCam)
+camBull   = input.color(color.new(#4caf50, 0), "Resistance color", group = gCam)
+camBear   = input.color(color.new(#f44336, 0), "Support color",    group = gCam)
+camW      = input.int(1, "Camarilla line width", minval = 1, maxval = 4, group = gCam)
+
+[ch, cl, cc] = request.security(syminfo.tickerid, camTf, [high[1], low[1], close[1]], barmerge.gaps_off, barmerge.lookahead_on)
+camRange = ch - cl
+camH4 = cc + camRange * 1.1 / 2.0
+camH3 = cc + camRange * 1.1 / 4.0
+camH2 = cc + camRange * 1.1 / 6.0
+camH1 = cc + camRange * 1.1 / 12.0
+camL1 = cc - camRange * 1.1 / 12.0
+camL2 = cc - camRange * 1.1 / 6.0
+camL3 = cc - camRange * 1.1 / 4.0
+camL4 = cc - camRange * 1.1 / 2.0
+camH5 = cl != 0 ? (ch / cl) * cc : na
+camL5 = not na(camH5) ? cc - (camH5 - cc) : na
+camPP = (ch + cl + cc) / 3.0
+
+plot(showCam and camShowH5 ? camH5 : na, "Cam H5", color = camBull, linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH4 ? camH4 : na, "Cam H4", color = camBull, linewidth = camW + 1, style = plot.style_stepline)
+plot(showCam and camShowH3 ? camH3 : na, "Cam H3", color = camBull, linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH2 ? camH2 : na, "Cam H2", color = color.new(camBull, 40), linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH1 ? camH1 : na, "Cam H1", color = color.new(camBull, 55), linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowPP ? camPP : na, "Cam PP", color = color.new(color.gray, 0), linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH1 ? camL1 : na, "Cam L1", color = color.new(camBear, 55), linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH2 ? camL2 : na, "Cam L2", color = color.new(camBear, 40), linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH3 ? camL3 : na, "Cam L3", color = camBear, linewidth = camW, style = plot.style_stepline)
+plot(showCam and camShowH4 ? camL4 : na, "Cam L4", color = camBear, linewidth = camW + 1, style = plot.style_stepline)
+plot(showCam and camShowH5 ? camL5 : na, "Cam L5", color = camBear, linewidth = camW, style = plot.style_stepline)
+
+// ─────────────────────────────────────────────
+// Moving averages (4 independent MTF MAs)
+// ─────────────────────────────────────────────
+gMA = "5) Moving averages"
+maSrc = input.source(close, "MA source", group = gMA)
+
+ma1On  = input.bool(true,  "MA 1", inline = "ma1", group = gMA)
+ma1Len = input.int(9, "MA1 length", minval = 1, inline = "ma1", group = gMA)
+ma1Typ = input.string("EMA", "MA1 type", options = ["SMA", "EMA", "WMA", "HMA", "VWMA", "RMA"], inline = "ma1", group = gMA)
+ma1Tf  = input.timeframe("", "MA1 TF", inline = "ma1", group = gMA)
+ma1Col = input.color(color.new(#ff9800, 0), "MA1 color", inline = "ma1", group = gMA)
+
+ma2On  = input.bool(true,  "MA 2", inline = "ma2", group = gMA)
+ma2Len = input.int(21, "MA2 length", minval = 1, inline = "ma2", group = gMA)
+ma2Typ = input.string("EMA", "MA2 type", options = ["SMA", "EMA", "WMA", "HMA", "VWMA", "RMA"], inline = "ma2", group = gMA)
+ma2Tf  = input.timeframe("", "MA2 TF", inline = "ma2", group = gMA)
+ma2Col = input.color(color.new(#9c27b0, 0), "MA2 color", inline = "ma2", group = gMA)
+
+ma3On  = input.bool(true,  "MA 3", inline = "ma3", group = gMA)
+ma3Len = input.int(50, "MA3 length", minval = 1, inline = "ma3", group = gMA)
+ma3Typ = input.string("SMA", "MA3 type", options = ["SMA", "EMA", "WMA", "HMA", "VWMA", "RMA"], inline = "ma3", group = gMA)
+ma3Tf  = input.timeframe("D", "MA3 TF", inline = "ma3", group = gMA)
+ma3Col = input.color(color.new(#03a9f4, 0), "MA3 color", inline = "ma3", group = gMA)
+
+ma4On  = input.bool(false, "MA 4", inline = "ma4", group = gMA)
+ma4Len = input.int(200, "MA4 length", minval = 1, inline = "ma4", group = gMA)
+ma4Typ = input.string("SMA", "MA4 type", options = ["SMA", "EMA", "WMA", "HMA", "VWMA", "RMA"], inline = "ma4", group = gMA)
+ma4Tf  = input.timeframe("D", "MA4 TF", inline = "ma4", group = gMA)
+ma4Col = input.color(color.new(#ffffff, 0), "MA4 color", inline = "ma4", group = gMA)
+
+maW = input.int(2, "MA line width", minval = 1, maxval = 5, group = gMA)
+
+ma1 = showMA and ma1On ? mtfMa(maSrc, ma1Len, ma1Typ, ma1Tf) : na
+ma2 = showMA and ma2On ? mtfMa(maSrc, ma2Len, ma2Typ, ma2Tf) : na
+ma3 = showMA and ma3On ? mtfMa(maSrc, ma3Len, ma3Typ, ma3Tf) : na
+ma4 = showMA and ma4On ? mtfMa(maSrc, ma4Len, ma4Typ, ma4Tf) : na
+
+plot(ma1, "MA 1", color = ma1Col, linewidth = maW)
+plot(ma2, "MA 2", color = ma2Col, linewidth = maW)
+plot(ma3, "MA 3", color = ma3Col, linewidth = maW)
+plot(ma4, "MA 4", color = ma4Col, linewidth = maW)
+
+// ─────────────────────────────────────────────
+// RSI (signals on overlay + dashboard)
+// ─────────────────────────────────────────────
+gRSI = "6) RSI"
+rsiLen     = input.int(14, "RSI length", minval = 2, group = gRSI)
+rsiTf      = input.timeframe("", "RSI timeframe (blank = chart)", group = gRSI)
+rsiOB      = input.int(70, "Overbought", minval = 50, maxval = 99, group = gRSI)
+rsiOS      = input.int(30, "Oversold", minval = 1, maxval = 50, group = gRSI)
+rsiMarks   = input.bool(true, "Show OB / OS markers on chart", group = gRSI)
+rsiPaint   = input.bool(false, "Color bars by RSI zone", group = gRSI)
+rsiColOB   = input.color(color.new(#f44336, 0), "Overbought marker", group = gRSI)
+rsiColOS   = input.color(color.new(#4caf50, 0), "Oversold marker", group = gRSI)
+
+rsiVal = mtfRsi(rsiLen, rsiTf)
+rsiOBNow = showRSI and rsiVal >= rsiOB
+rsiOSNow = showRSI and rsiVal <= rsiOS
+plotshape(showRSI and rsiMarks and rsiOBNow and not rsiOBNow[1], title = "RSI overbought", style = shape.triangledown, location = location.abovebar, color = rsiColOB, size = size.tiny)
+plotshape(showRSI and rsiMarks and rsiOSNow and not rsiOSNow[1], title = "RSI oversold", style = shape.triangleup, location = location.belowbar, color = rsiColOS, size = size.tiny)
+
+// ─────────────────────────────────────────────
+// Supertrend
+// ─────────────────────────────────────────────
+gST = "7) Supertrend"
+stFactor = input.float(3.0, "ATR factor", minval = 0.5, step = 0.1, group = gST)
+stAtr    = input.int(10, "ATR period", minval = 1, group = gST)
+stTf     = input.timeframe("", "Supertrend timeframe (blank = chart)", group = gST)
+stFill   = input.bool(true, "Fill Supertrend side", group = gST)
+stUpCol  = input.color(color.new(#26a69a, 0), "Uptrend", group = gST)
+stDnCol  = input.color(color.new(#ef5350, 0), "Downtrend", group = gST)
+stW      = input.int(2, "Supertrend width", minval = 1, maxval = 5, group = gST)
+
+stTfUsed = stTf == "" ? timeframe.period : stTf
+[stLine, stDir] = request.security(syminfo.tickerid, stTfUsed, ta.supertrend(stFactor, stAtr), barmerge.gaps_off, barmerge.lookahead_off)
+stBull = showST and stDir < 0
+stBear = showST and stDir > 0
+
+pST = plot(showST ? stLine : na, "Supertrend", color = stBull ? stUpCol : stDnCol, linewidth = stW, style = plot.style_linebr)
+pPx = plot(showST and stFill ? close : na, "ST fill anchor", display = display.none)
+fill(pST, pPx, color = showST and stFill ? (stBull ? color.new(stUpCol, 88) : color.new(stDnCol, 88)) : na, title = "Supertrend fill")
+plotshape(showST and stBull and stBear[1], title = "ST bull flip", style = shape.labelup, location = location.belowbar, color = stUpCol, text = "ST", textcolor = color.white, size = size.tiny)
+plotshape(showST and stBear and stBull[1], title = "ST bear flip", style = shape.labeldown, location = location.abovebar, color = stDnCol, text = "ST", textcolor = color.white, size = size.tiny)
+
+barcolor(showRSI and rsiPaint ? (rsiOBNow ? color.new(rsiColOB, 70) : rsiOSNow ? color.new(rsiColOS, 70) : na) : na)
+
+// ─────────────────────────────────────────────
+// Dashboard
+// ─────────────────────────────────────────────
+gDash = "8) Dashboard"
+dashPos = input.string("Top Right", "Position", options = ["Top Left", "Top Right", "Bottom Left", "Bottom Right"], group = gDash)
+dashSize = input.string("Normal", "Text size", options = ["Tiny", "Small", "Normal", "Large"], group = gDash)
+
+dashTablePos = switch dashPos
+    "Top Left"     => position.top_left
+    "Bottom Left"  => position.bottom_left
+    "Bottom Right" => position.bottom_right
+    => position.top_right
+
+dashTextSize = switch dashSize
+    "Tiny"   => size.tiny
+    "Small"  => size.small
+    "Large"  => size.large
+    => size.normal
+
+f_zone(float px) =>
+    px > cprTop ? "Above CPR" : px < cprBot ? "Below CPR" : "Inside CPR"
+
+f_rsiZone() =>
+    rsiVal >= rsiOB ? "Overbought" : rsiVal <= rsiOS ? "Oversold" : "Neutral"
+
+var table hud = table.new(position.top_right, 2, 9, bgcolor = color.new(#111111, 15), border_width = 1, border_color = color.new(#333333, 0), frame_color = color.new(#444444, 0), frame_width = 1)
+
+if barstate.islast
+    if showDash
+        table.set_position(hud, dashTablePos)
+        headerBg = color.new(#1e88e5, 20)
+        table.cell(hud, 0, 0, "Module", text_color = color.white, bgcolor = headerBg, text_size = dashTextSize)
+        table.cell(hud, 1, 0, "Status", text_color = color.white, bgcolor = headerBg, text_size = dashTextSize)
+        table.cell(hud, 0, 1, "Price", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 1, str.tostring(close, format.mintick), text_color = color.white, text_size = dashTextSize)
+        table.cell(hud, 0, 2, "CPR", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 2, showCPR ? f_zone(close) : "Off", text_color = showCPR ? (close > cprTop ? #4caf50 : close < cprBot ? #f44336 : #ffeb3b) : color.gray, text_size = dashTextSize)
+        vwapTxt = showVWAP ? (close >= vwapVal ? "Above  " + str.tostring(vwapVal, format.mintick) : "Below  " + str.tostring(vwapVal, format.mintick)) : "Off"
+        table.cell(hud, 0, 3, "VWAP", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 3, vwapTxt, text_color = showVWAP ? (close >= vwapVal ? #4caf50 : #f44336) : color.gray, text_size = dashTextSize)
+        camZone = close >= camH4 ? ">= H4 breakout" : close >= camH3 ? "H3-H4" : close <= camL4 ? "<= L4 breakdown" : close <= camL3 ? "L4-L3" : "Between L3-H3"
+        table.cell(hud, 0, 4, "Camarilla", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 4, showCam ? camZone : "Off", text_color = showCam ? color.white : color.gray, text_size = dashTextSize)
+        table.cell(hud, 0, 5, "RSI " + str.tostring(rsiLen), text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 5, showRSI ? str.tostring(rsiVal, "#.00") + "  " + f_rsiZone() : "Off", text_color = showRSI ? (rsiOBNow ? #f44336 : rsiOSNow ? #4caf50 : color.white) : color.gray, text_size = dashTextSize)
+        table.cell(hud, 0, 6, "Supertrend", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 6, showST ? (stBull ? "Bullish" : "Bearish") : "Off", text_color = showST ? (stBull ? #26a69a : #ef5350) : color.gray, text_size = dashTextSize)
+        table.cell(hud, 0, 7, "MA 1", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 7, showMA and ma1On ? str.tostring(ma1, format.mintick) : "Off", text_color = ma1Col, text_size = dashTextSize)
+        table.cell(hud, 0, 8, "MA 2", text_color = color.gray, text_size = dashTextSize)
+        table.cell(hud, 1, 8, showMA and ma2On ? str.tostring(ma2, format.mintick) : "Off", text_color = ma2Col, text_size = dashTextSize)
+    else
+        table.clear(hud, 0, 0, 1, 8)
+
+// ─────────────────────────────────────────────
+// Alerts
+// ─────────────────────────────────────────────
+alertcondition(showST and stBull and stBear[1], "Supertrend bullish", "Supertrend flipped bullish")
+alertcondition(showST and stBear and stBull[1], "Supertrend bearish", "Supertrend flipped bearish")
+alertcondition(showRSI and rsiOBNow and not rsiOBNow[1], "RSI overbought", "RSI entered overbought")
+alertcondition(showRSI and rsiOSNow and not rsiOSNow[1], "RSI oversold", "RSI entered oversold")
+alertcondition(showVWAP and ta.crossover(close, vwapVal), "Cross above VWAP", "Price crossed above VWAP")
+alertcondition(showVWAP and ta.crossunder(close, vwapVal), "Cross below VWAP", "Price crossed below VWAP")
+alertcondition(showCPR and ta.crossover(close, cprTop), "Break above CPR", "Price broke above CPR top")
+alertcondition(showCPR and ta.crossunder(close, cprBot), "Break below CPR", "Price broke below CPR bottom")
+alertcondition(showCam and ta.crossover(close, camH4), "Camarilla H4 break", "Price broke Camarilla H4")
+alertcondition(showCam and ta.crossunder(close, camL4), "Camarilla L4 break", "Price broke Camarilla L4")
