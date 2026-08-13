@@ -2,13 +2,13 @@
 
 Pine Script v6 overlay that combines **CPR**, **VWAP**, **Camarilla pivots**, **multi-timeframe moving averages**, **RSI**, and **Supertrend**. Each module can be turned on or off independently.
 
-Script: [`indicators/cpr_vwap_camarilla_suite.pine`](indicators/cpr_vwap_camarilla_suite.pine)
+Script: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
 
 ## Add it to TradingView
 
 1. Open [TradingView](https://www.tradingview.com/) and any chart.
 2. Open the **Pine Editor** (bottom panel).
-3. Paste the contents of `indicators/cpr_vwap_camarilla_suite.pine`.
+3. Paste the contents of `cpr_vwap_camarilla_suite.pine`.
 4. Click **Save**, then **Add to chart**.
 
 ## Enable only what you want
