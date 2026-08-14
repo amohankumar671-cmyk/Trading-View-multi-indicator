@@ -1,34 +1,32 @@
 # TradingView multi-indicator
 
-Overlay script: **CPR**, **previous high/low**, **daily R/S pivots**, **Camarilla** (optional), **VWAP**, and **moving averages**.
-
 File: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
 
-RSI and Supertrend are not included.
+Daily **CPR** (KGS-style), **Camarilla** (S3/R3 like the Pivots dialog), **VWAP**, and **moving averages**.
+
+## CPR (Daily only)
+
+Inputs:
+- Select Pivot Mode: Manual
+- Show Daily CPR (Manual)
+- Show Prev Day High
+- Show Prev Day Low
+- Show Daily R1–R4 / S1–S4
+
+Style tab lists: Daily Pivot, Daily BC, Daily TC (blue), Daily R1–R4 (green), Daily S1–S4 (red), Prev Day High / Low (dark gray).
+
+Weekly / monthly / yearly / next-period CPR are removed.
+
+## Camarilla
+
+Matches the Pivots reference:
+- Daily-based values
+- 15 pivots back
+- Labels + prices on the **left**
+- Line width **3**
+- **S3** and **R3** on by default, **black**
+- P, S1, R1, S2, R2, S4, R4, S5, R5 available, off, orange
 
 ## Add to TradingView
 
-1. Open a chart → **Pine Editor**
-2. Paste `cpr_vwap_camarilla_suite.pine`
-3. **Save** → **Add to chart**
-4. Use **Inputs** tick boxes to turn modules on or off
-5. Use the **Style** tab to hide or recolor Daily TC / CPR / BC, R1–R3, S1–S3, and previous highs/lows
-
-## CPR style (Trend Checker look)
-
-Daily levels plot as **dotted circles**:
-
-- **Daily TC / CPR / BC** — blue
-- **Daily R1 R2 R3** — green
-- **Daily S1 S2 S3** — red
-- **Previous day / week / month / year high & low** — black
-
-Weekly / monthly / yearly CPR use dotted lines so the script stays under TradingView’s 64-plot limit.
-
-## Inputs
-
-- **CPR LEVELS** — Auto Select, Daily/Weekly/Monthly/Yearly CPR, PDH/PDL (and weekly/monthly/yearly H/L)
-- **DAILY PIVOTS** — R1/S1, R2/S2, R3/S3
-- **CAMARILLA** — off by default; Daily H4/L4 and H3/L3
-- **VWAP** — session VWAP (yellow by default), optional bands
-- **MOVING AVERAGES** — five MAs with type, source, length, timeframe, color
+Paste the `.pine` file into Pine Editor → Save → Add to chart.

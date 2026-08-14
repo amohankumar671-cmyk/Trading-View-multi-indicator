@@ -1,5 +1,5 @@
 //@version=6
-indicator("CPR VWAP Pivots MA", overlay = true, max_lines_count = 50)
+indicator("CPR VWAP Camarilla MA", overlay = true, max_lines_count = 500, max_labels_count = 500)
 
 // =============================================================================
 // Helpers
@@ -16,85 +16,141 @@ f_ma(float src, simple int len, string kind) =>
 f_mtf(float src, simple int len, string kind, simple string tf) =>
     tf == "" or tf == timeframe.period ? f_ma(src, len, kind) : request.security(syminfo.tickerid, tf, f_ma(src, len, kind), barmerge.gaps_off, barmerge.lookahead_off)
 
-f_prevBar(simple string tf) =>
-    request.security(syminfo.tickerid, tf, [high[1], low[1], close[1]], barmerge.gaps_off, barmerge.lookahead_on)
+f_prevDay() =>
+    request.security(syminfo.tickerid, "D", [high[1], low[1], close[1]], barmerge.gaps_off, barmerge.lookahead_on)
 
-// CPR: TC / Pivot / BC
 f_cpr(float h, float l, float c) =>
     float piv = (h + l + c) / 3.0
     float bc  = (h + l) / 2.0
     float tc  = piv - bc + piv
     [math.max(tc, bc), piv, math.min(tc, bc)]
 
-// Classic floor pivots (Trend Checker R1–R3 / S1–S3)
 f_rs(float h, float l, float c) =>
     float pp = (h + l + c) / 3.0
-    float r1 = 2.0 * pp - l
-    float s1 = 2.0 * pp - h
-    float r2 = pp + (h - l)
-    float s2 = pp - (h - l)
-    float r3 = h + 2.0 * (pp - l)
-    float s3 = l - 2.0 * (h - pp)
-    [r1, r2, r3, s1, s2, s3]
+    float rng = h - l
+    [2.0 * pp - l, pp + rng, h + 2.0 * (pp - l), pp + 3.0 * rng, 2.0 * pp - h, pp - rng, l - 2.0 * (h - pp), pp - 3.0 * rng]
 
 f_cam(float h, float l, float c) =>
     float rng = h - l
-    [c + rng * 1.1 / 2.0, c + rng * 1.1 / 4.0, c - rng * 1.1 / 4.0, c - rng * 1.1 / 2.0]
+    float r4 = c + rng * 1.1 / 2.0
+    float r3 = c + rng * 1.1 / 4.0
+    float r2 = c + rng * 1.1 / 6.0
+    float r1 = c + rng * 1.1 / 12.0
+    float pp = (h + l + c) / 3.0
+    float s1 = c - rng * 1.1 / 12.0
+    float s2 = c - rng * 1.1 / 6.0
+    float s3 = c - rng * 1.1 / 4.0
+    float s4 = c - rng * 1.1 / 2.0
+    float r5 = l != 0 ? (h / l) * c : na
+    float s5 = not na(r5) ? c - (r5 - c) : na
+    [pp, r1, r2, r3, r4, r5, s1, s2, s3, s4, s5]
 
-// Extra timeframes as dotted lines (avoids the 64-plot cap).
-f_dotLevel(bool on, float px, simple string sessTf, color col) =>
+// Historical daily segments + left labels (TradingView Pivots-style).
+f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool showPx, bool labLeft, int lookback) =>
     var line ln = na
-    int t0 = time(sessTf)
-    if on and not na(px) and not na(t0)
-        if na(ln)
-            ln := line.new(t0, px, time, px, xloc = xloc.bar_time, extend = extend.right, color = col, style = line.style_dotted, width = 2)
+    var label curLab = na
+    var line[] hist = array.new<line>()
+    var label[] labs = array.new<label>()
+    bool newDay = ta.change(time("D")) != 0
+    int t0 = time("D")
+    f_txt(float p) =>
+        name + (showPx ? " " + str.tostring(p, format.mintick) : "")
+    f_labStyle() =>
+        labLeft ? label.style_label_right : label.style_label_left
+    if not on or na(px)
+        if not na(ln)
+            line.delete(ln)
+            ln := na
+        if not na(curLab)
+            label.delete(curLab)
+            curLab := na
+        while array.size(hist) > 0
+            line.delete(array.pop(hist))
+        while array.size(labs) > 0
+            label.delete(array.pop(labs))
+    else
+        if newDay and not na(ln)
+            line.set_xy1(ln, line.get_x1(ln), px[1])
+            line.set_xy2(ln, time[1], px[1])
+            line.set_extend(ln, extend.none)
+            array.push(hist, ln)
+            if showLab
+                array.push(labs, label.new(line.get_x1(ln), px[1], f_txt(px[1]), xloc = xloc.bar_time, style = f_labStyle(), color = color.new(color.white, 100), textcolor = col, size = size.small))
+            while array.size(hist) > lookback
+                line.delete(array.shift(hist))
+            while array.size(labs) > lookback
+                label.delete(array.shift(labs))
+            ln := line.new(t0, px, time, px, xloc = xloc.bar_time, extend = extend.right, color = col, width = w)
+        else if na(ln)
+            ln := line.new(t0, px, time, px, xloc = xloc.bar_time, extend = extend.right, color = col, width = w)
         else
             line.set_xy1(ln, t0, px)
             line.set_xy2(ln, time, px)
             line.set_color(ln, col)
-    else if not na(ln)
-        line.delete(ln)
-        ln := na
+            line.set_width(ln, w)
+        if showLab
+            int lx = labLeft ? t0 : time
+            if na(curLab)
+                curLab := label.new(lx, px, f_txt(px), xloc = xloc.bar_time, style = f_labStyle(), color = color.new(color.white, 100), textcolor = col, size = size.small)
+            else
+                label.set_xy(curLab, lx, px)
+                label.set_text(curLab, f_txt(px))
+                label.set_textcolor(curLab, col)
+        else if not na(curLab)
+            label.delete(curLab)
+            curLab := na
     ln
 
 colBlue = #2196f3
-colBlk  = #000000
+colBlk  = #363a45
 colGrn  = #00c853
 colRed  = #ff1744
+colOrg  = #ff9800
 
 // =============================================================================
-// ------- CPR LEVELS -------
+// ------- CPR (Daily only) -------
 // =============================================================================
-gCpr = "------- CPR LEVELS -------"
-autoCpr = input.bool(true, "Auto Select CPR", group = gCpr, tooltip = "Intraday → Daily, Daily chart → Weekly, Weekly → Monthly, Monthly → Yearly.")
-
-showDCpr = input.bool(true,  "Show Daily CPR",   inline = "cprD", group = gCpr)
-showPDHL = input.bool(true,  "Show PDH / PDL",   inline = "cprD", group = gCpr)
-
-showWCpr = input.bool(false, "Show Weekly CPR",  inline = "cprW", group = gCpr)
-showPWHL = input.bool(false, "Show PWH / PWL",   inline = "cprW", group = gCpr)
-
-showMCpr = input.bool(false, "Show Monthly CPR", inline = "cprM", group = gCpr)
-showPMHL = input.bool(false, "Show PMH / PML",   inline = "cprM", group = gCpr)
-
-showYCpr = input.bool(false, "Show Yearly CPR",  inline = "cprY", group = gCpr)
-showPYHL = input.bool(false, "Show PYH / PYL",   inline = "cprY", group = gCpr)
-
-// =============================================================================
-// ------- DAILY PIVOTS (R / S) -------
-// =============================================================================
-gRs = "------- DAILY PIVOTS -------"
-showRS1 = input.bool(true,  "Show Daily R1 / S1", inline = "rs1", group = gRs)
-showRS2 = input.bool(true,  "Show Daily R2 / S2", inline = "rs1", group = gRs)
-showRS3 = input.bool(true,  "Show Daily R3 / S3", inline = "rs1", group = gRs)
+gCpr = "------- CPR -------"
+cprMode  = input.string("Manual", "Select Pivot Mode", options = ["Manual"], group = gCpr)
+showDCpr = input.bool(true, "Show Daily CPR (Manual)", group = gCpr)
+showPDH  = input.bool(true, "Show Prev Day High", group = gCpr)
+showPDL  = input.bool(true, "Show Prev Day Low", group = gCpr)
+showDRS  = input.bool(true, "Show Daily R1-R4 / S1-S4", group = gCpr)
 
 // =============================================================================
 // ------- CAMARILLA -------
 // =============================================================================
 gCam = "------- CAMARILLA -------"
-showDCam  = input.bool(false, "Show Daily Camarilla", inline = "cam", group = gCam)
-showCamH4 = input.bool(true,  "H4 / L4", inline = "cam", group = gCam)
-showCamH3 = input.bool(true,  "H3 / L3", inline = "cam", group = gCam)
+showCam     = input.bool(true, "Show Camarilla", group = gCam)
+camBack     = input.int(15, "Number of pivots back", minval = 1, maxval = 50, group = gCam)
+camDaily    = input.bool(true, "Use daily-based values", group = gCam)
+camLabels   = input.bool(true, "Show labels", inline = "camLab", group = gCam)
+camPrices   = input.bool(true, "Show prices", inline = "camLab", group = gCam)
+camLabPos   = input.string("Left", "Labels position", options = ["Left", "Right"], group = gCam)
+camW        = input.int(3, "Line width", minval = 1, maxval = 5, group = gCam)
+
+camPOn  = input.bool(false, "P",  inline = "p",  group = gCam)
+camPCol = input.color(colOrg, "P color", inline = "p", group = gCam)
+camS1On = input.bool(false, "S1", inline = "s1", group = gCam)
+camS1Col = input.color(colOrg, "S1 color", inline = "s1", group = gCam)
+camR1On = input.bool(false, "R1", inline = "r1", group = gCam)
+camR1Col = input.color(colOrg, "R1 color", inline = "r1", group = gCam)
+camS2On = input.bool(false, "S2", inline = "s2", group = gCam)
+camS2Col = input.color(colOrg, "S2 color", inline = "s2", group = gCam)
+camR2On = input.bool(false, "R2", inline = "r2", group = gCam)
+camR2Col = input.color(colOrg, "R2 color", inline = "r2", group = gCam)
+camS3On = input.bool(true,  "S3", inline = "s3", group = gCam)
+camS3Col = input.color(colBlk, "S3 color", inline = "s3", group = gCam)
+camR3On = input.bool(true,  "R3", inline = "r3", group = gCam)
+camR3Col = input.color(colBlk, "R3 color", inline = "r3", group = gCam)
+camS4On = input.bool(false, "S4", inline = "s4", group = gCam)
+camS4Col = input.color(colOrg, "S4 color", inline = "s4", group = gCam)
+camR4On = input.bool(false, "R4", inline = "r4", group = gCam)
+camR4Col = input.color(colOrg, "R4 color", inline = "r4", group = gCam)
+camS5On = input.bool(false, "S5", inline = "s5", group = gCam)
+camS5Col = input.color(colOrg, "S5 color", inline = "s5", group = gCam)
+camR5On = input.bool(false, "R5", inline = "r5", group = gCam)
+camR5Col = input.color(colOrg, "R5 color", inline = "r5", group = gCam)
 
 // =============================================================================
 // ------- VWAP -------
@@ -147,67 +203,44 @@ ma5Tf  = input.timeframe("D", "MA5 TF", inline = "ma5", group = gMa)
 ma5Col = input.color(#ffffff, "MA5 color", inline = "ma5", group = gMa)
 
 // =============================================================================
-// Levels
+// Daily levels
 // =============================================================================
-[dH, dL, dC] = f_prevBar("D")
-[wH, wL, wC] = f_prevBar("W")
-[mH, mL, mC] = f_prevBar("M")
-[yH, yL, yC] = f_prevBar("12M")
-
+[dH, dL, dC] = f_prevDay()
 [dTC, dPiv, dBC] = f_cpr(dH, dL, dC)
-[wTC, wPiv, wBC] = f_cpr(wH, wL, wC)
-[mTC, mPiv, mBC] = f_cpr(mH, mL, mC)
-[yTC, yPiv, yBC] = f_cpr(yH, yL, yC)
+[dR1, dR2, dR3, dR4, dS1, dS2, dS3, dS4] = f_rs(dH, dL, dC)
+[cPP, cR1, cR2, cR3, cR4, cR5, cS1, cS2, cS3, cS4, cS5] = f_cam(dH, dL, dC)
 
-[dR1, dR2, dR3, dS1, dS2, dS3] = f_rs(dH, dL, dC)
-[dH4, dH3, dL3, dL4] = f_cam(dH, dL, dC)
+// Style tab: Daily Pivot / BC / TC, R1–R4, S1–S4, Prev Day High / Low
+plot(showDCpr ? dPiv : na, "Daily Pivot", color = colBlue, linewidth = 1)
+plot(showDCpr ? dBC  : na, "Daily BC",    color = colBlue, linewidth = 1)
+plot(showDCpr ? dTC  : na, "Daily TC",    color = colBlue, linewidth = 1)
+plot(showDRS ? dR1 : na, "Daily R1", color = colGrn, linewidth = 1)
+plot(showDRS ? dR2 : na, "Daily R2", color = colGrn, linewidth = 1)
+plot(showDRS ? dR3 : na, "Daily R3", color = colGrn, linewidth = 1)
+plot(showDRS ? dR4 : na, "Daily R4", color = colGrn, linewidth = 1)
+plot(showDRS ? dS1 : na, "Daily S1", color = colRed, linewidth = 1)
+plot(showDRS ? dS2 : na, "Daily S2", color = colRed, linewidth = 1)
+plot(showDRS ? dS3 : na, "Daily S3", color = colRed, linewidth = 1)
+plot(showDRS ? dS4 : na, "Daily S4", color = colRed, linewidth = 1)
+plot(showPDH ? dH : na, "Prev Day High", color = colBlk, linewidth = 1)
+plot(showPDL ? dL : na, "Prev Day Low",  color = colBlk, linewidth = 1)
 
-plotDailyCpr   = showDCpr or (autoCpr and timeframe.isintraday)
-plotWeeklyCpr  = showWCpr or (autoCpr and timeframe.isdaily)
-plotMonthlyCpr = showMCpr or (autoCpr and timeframe.isweekly)
-plotYearlyCpr  = showYCpr or (autoCpr and timeframe.ismonthly)
-
-dot = plot.style_circles
-
-// Daily CPR + classic R/S + previous H/L as circle plots (Style tab, GP look)
-plot(plotDailyCpr ? dTC  : na, "Daily TC",  color = colBlue, style = dot, linewidth = 2)
-plot(plotDailyCpr ? dPiv : na, "Daily CPR", color = colBlue, style = dot, linewidth = 2)
-plot(plotDailyCpr ? dBC  : na, "Daily BC",  color = colBlue, style = dot, linewidth = 2)
-
-plot(showRS1 ? dR1 : na, "Daily R1", color = colGrn, style = dot, linewidth = 2)
-plot(showRS2 ? dR2 : na, "Daily R2", color = colGrn, style = dot, linewidth = 2)
-plot(showRS3 ? dR3 : na, "Daily R3", color = colGrn, style = dot, linewidth = 2)
-plot(showRS1 ? dS1 : na, "Daily S1", color = colRed, style = dot, linewidth = 2)
-plot(showRS2 ? dS2 : na, "Daily S2", color = colRed, style = dot, linewidth = 2)
-plot(showRS3 ? dS3 : na, "Daily S3", color = colRed, style = dot, linewidth = 2)
-
-plot(showPYHL ? yH : na, "Previous Year High",  color = colBlk, style = dot, linewidth = 2)
-plot(showPYHL ? yL : na, "Previous Year Low",   color = colBlk, style = dot, linewidth = 2)
-plot(showPMHL ? mH : na, "Previous Month High", color = colBlk, style = dot, linewidth = 2)
-plot(showPMHL ? mL : na, "Previous Month Low",  color = colBlk, style = dot, linewidth = 2)
-plot(showPWHL ? wH : na, "Previous Week High",  color = colBlk, style = dot, linewidth = 2)
-plot(showPWHL ? wL : na, "Previous Week Low",   color = colBlk, style = dot, linewidth = 2)
-plot(showPDHL ? dH : na, "Previous Day High",   color = colBlk, style = dot, linewidth = 2)
-plot(showPDHL ? dL : na, "Previous Day Low",    color = colBlk, style = dot, linewidth = 2)
-
-// Weekly / monthly / yearly CPR as dotted lines (not extra plots)
-f_dotLevel(plotWeeklyCpr,  wTC,  "W",   colBlue)
-f_dotLevel(plotWeeklyCpr,  wPiv, "W",   colBlk)
-f_dotLevel(plotWeeklyCpr,  wBC,  "W",   colBlue)
-f_dotLevel(plotMonthlyCpr, mTC,  "M",   #ff9800)
-f_dotLevel(plotMonthlyCpr, mPiv, "M",   colBlk)
-f_dotLevel(plotMonthlyCpr, mBC,  "M",   #ff9800)
-f_dotLevel(plotYearlyCpr,  yTC,  "12M", #607d8b)
-f_dotLevel(plotYearlyCpr,  yPiv, "12M", colBlk)
-f_dotLevel(plotYearlyCpr,  yBC,  "12M", #607d8b)
-
-f_dotLevel(showDCam and showCamH4, dH4, "D", colGrn)
-f_dotLevel(showDCam and showCamH3, dH3, "D", colGrn)
-f_dotLevel(showDCam and showCamH3, dL3, "D", colRed)
-f_dotLevel(showDCam and showCamH4, dL4, "D", colRed)
+bool camOn = showCam
+bool labLeft = camLabPos == "Left"
+f_camLevel(camOn and camPOn,  cPP, camPCol,  camW, "P",  camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camR1On, cR1, camR1Col, camW, "R1", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camR2On, cR2, camR2Col, camW, "R2", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camR3On, cR3, camR3Col, camW, "R3", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camR4On, cR4, camR4Col, camW, "R4", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camR5On, cR5, camR5Col, camW, "R5", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camS1On, cS1, camS1Col, camW, "S1", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camS2On, cS2, camS2Col, camW, "S2", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camS3On, cS3, camS3Col, camW, "S3", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camS4On, cS4, camS4Col, camW, "S4", camLabels, camPrices, labLeft, camBack)
+f_camLevel(camOn and camS5On, cS5, camS5Col, camW, "S5", camLabels, camPrices, labLeft, camBack)
 
 // =============================================================================
-// VWAP
+// VWAP / MA
 // =============================================================================
 var float sumPV  = 0.0
 var float sumV   = 0.0
@@ -240,7 +273,7 @@ plot(ma5On ? f_mtf(ma5Src, ma5Len, ma5Typ, ma5Tf) : na, "MA #5", color = ma5Col,
 
 alertcondition(showVWAP and ta.crossover(close, vwapVal), "Cross above VWAP", "Price crossed above VWAP")
 alertcondition(showVWAP and ta.crossunder(close, vwapVal), "Cross below VWAP", "Price crossed below VWAP")
-alertcondition(plotDailyCpr and ta.crossover(close, dTC), "Break above Daily CPR", "Price broke above Daily TC")
-alertcondition(plotDailyCpr and ta.crossunder(close, dBC), "Break below Daily CPR", "Price broke below Daily BC")
-alertcondition(showRS1 and ta.crossover(close, dR1), "Daily R1 break", "Price broke Daily R1")
-alertcondition(showRS1 and ta.crossunder(close, dS1), "Daily S1 break", "Price broke Daily S1")
+alertcondition(showDCpr and ta.crossover(close, dTC), "Break above Daily CPR", "Price broke above Daily TC")
+alertcondition(showDCpr and ta.crossunder(close, dBC), "Break below Daily CPR", "Price broke below Daily BC")
+alertcondition(camOn and camR3On and ta.crossover(close, cR3), "Camarilla R3 break", "Price broke Camarilla R3")
+alertcondition(camOn and camS3On and ta.crossunder(close, cS3), "Camarilla S3 break", "Price broke Camarilla S3")
