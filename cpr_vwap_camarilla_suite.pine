@@ -1,5 +1,5 @@
 //@version=6
-indicator("CPR VWAP Camarilla MA", overlay = true, max_lines_count = 500, max_labels_count = 500)
+indicator("CPR Indicator", shorttitle = "CPR", overlay = true, max_lines_count = 500, max_labels_count = 500)
 
 // =============================================================================
 // Helpers
@@ -107,10 +107,10 @@ f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool 
             curLab := na
     ln
 
-colBlue = #2196f3
-colBlk  = #363a45
-colGrn  = #00c853
-colRed  = #ff1744
+colBlue = #2962FF
+colBlk  = #000000
+colGrn  = #089981
+colRed  = #F23645
 colOrg  = #ff9800
 
 // =============================================================================
@@ -216,20 +216,21 @@ ma5Col = input.color(#ffffff, "MA5 color", inline = "ma5", group = gMa)
 [dR1, dR2, dR3, dR4, dS1, dS2, dS3, dS4] = f_rs(dH, dL, dC)
 [cPP, cR1, cR2, cR3, cR4, cR5, cS1, cS2, cS3, cS4, cS5] = f_cam(dH, dL, dC)
 
-// Style tab: Daily Pivot / BC / TC, R1–R4, S1–S4, Prev Day High / Low
-plot(showDCpr ? dPiv : na, "Daily Pivot", color = colBlue, linewidth = 1)
-plot(showDCpr ? dBC  : na, "Daily BC",    color = colBlue, linewidth = 1)
-plot(showDCpr ? dTC  : na, "Daily TC",    color = colBlue, linewidth = 1)
-plot(showDRS ? dR1 : na, "Daily R1", color = colGrn, linewidth = 1)
-plot(showDRS ? dR2 : na, "Daily R2", color = colGrn, linewidth = 1)
-plot(showDRS ? dR3 : na, "Daily R3", color = colGrn, linewidth = 1)
-plot(showDRS ? dR4 : na, "Daily R4", color = colGrn, linewidth = 1)
-plot(showDRS ? dS1 : na, "Daily S1", color = colRed, linewidth = 1)
-plot(showDRS ? dS2 : na, "Daily S2", color = colRed, linewidth = 1)
-plot(showDRS ? dS3 : na, "Daily S3", color = colRed, linewidth = 1)
-plot(showDRS ? dS4 : na, "Daily S4", color = colRed, linewidth = 1)
-plot(showPDH ? dH : na, "Prev Day High", color = colBlk, linewidth = 1)
-plot(showPDL ? dL : na, "Prev Day Low",  color = colBlk, linewidth = 1)
+// KGS layout: dotted circles, stepped by day, colored price-scale titles
+kgs = plot.style_circles
+plot(showDCpr ? dTC  : na, "Daily TC",        color = colBlue, style = kgs, linewidth = 2)
+plot(showDCpr ? dPiv : na, "Daily Pivot",     color = colBlue, style = kgs, linewidth = 2)
+plot(showDCpr ? dBC  : na, "Daily BC",        color = colBlue, style = kgs, linewidth = 2)
+plot(showDRS ? dR1 : na, "Daily R1", color = colGrn, style = kgs, linewidth = 2)
+plot(showDRS ? dR2 : na, "Daily R2", color = colGrn, style = kgs, linewidth = 2)
+plot(showDRS ? dR3 : na, "Daily R3", color = colGrn, style = kgs, linewidth = 2)
+plot(showDRS ? dR4 : na, "Daily R4", color = colGrn, style = kgs, linewidth = 2)
+plot(showDRS ? dS1 : na, "Daily S1", color = colRed, style = kgs, linewidth = 2)
+plot(showDRS ? dS2 : na, "Daily S2", color = colRed, style = kgs, linewidth = 2)
+plot(showDRS ? dS3 : na, "Daily S3", color = colRed, style = kgs, linewidth = 2)
+plot(showDRS ? dS4 : na, "Daily S4", color = colRed, style = kgs, linewidth = 2)
+plot(showPDH ? dH : na, "Prev Day High", color = colBlk, style = kgs, linewidth = 2)
+plot(showPDL ? dL : na, "Prev Day Low",  color = colBlk, style = kgs, linewidth = 2)
 
 bool camOn = showCam
 bool labLeft = camLabPos == "Left"

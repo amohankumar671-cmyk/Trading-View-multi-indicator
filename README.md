@@ -13,7 +13,7 @@ Inputs:
 - Show Prev Day Low
 - Show Daily R1–R4 / S1–S4
 
-Style tab lists: Daily Pivot, Daily BC, Daily TC (blue), Daily R1–R4 (green), Daily S1–S4 (red), Prev Day High / Low (dark gray).
+Daily CPR follows **CPR by KGS**: dotted circle plots, blue CPR band, green R1–R4, red S1–S4, black Prev Day High/Low. Price-scale labels use those plot titles (Daily TC, Daily Pivot, Daily BC, …).
 
 Weekly / monthly / yearly / next-period CPR are removed.
 
