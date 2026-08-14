@@ -41,7 +41,7 @@ Groups match a Trend Checker-style panel. Each row is a tick box (plus type / le
 
 Every level is its own plot, so you can hide or recolor them individually: Daily TC / CPR / BC, previous highs/lows, Camarilla H3/H4/L3/L4, VWAP, each MA, Supertrend.
 
-CPR and pivot levels use **circles** so they read as clean dotted horizontals and do not draw diagonal joins between days.
+CPR and Camarilla use **dotted lines** for the current day/week/month (TradingView’s 64-plot limit cannot draw every level as circle plots). VWAP, MAs, and Supertrend stay as normal plots in the Style tab.
 
 ## Alerts
 

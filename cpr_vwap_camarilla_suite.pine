@@ -1,5 +1,5 @@
 //@version=6
-indicator("CPR VWAP Camarilla MA RSI Supertrend", overlay = true, max_labels_count = 50)
+indicator("CPR VWAP Camarilla MA RSI Supertrend", overlay = true, max_lines_count = 100, max_labels_count = 100)
 
 // =============================================================================
 // Helpers
@@ -37,6 +37,23 @@ f_cam(float h, float l, float c) =>
     float l3 = c - rng * 1.1 / 4.0
     float l4 = c - rng * 1.1 / 2.0
     [h4, h3, l3, l4]
+
+// Dotted horizontal for the current HTF period. line.new does not count toward
+// the 64-plot cap (plot.style_circles counts as two plots each).
+f_dotLevel(bool on, float px, simple string sessTf, color col) =>
+    var line ln = na
+    int t0 = time(sessTf)
+    if on and not na(px) and not na(t0)
+        if na(ln)
+            ln := line.new(t0, px, time, px, xloc = xloc.bar_time, extend = extend.right, color = col, style = line.style_dotted, width = 2)
+        else
+            line.set_xy1(ln, t0, px)
+            line.set_xy2(ln, time, px)
+            line.set_color(ln, col)
+    else if not na(ln)
+        line.delete(ln)
+        ln := na
+    ln
 
 // =============================================================================
 // ------- CPR LEVELS -------
@@ -166,51 +183,47 @@ plotMonthlyCpr = showMCpr or (autoCpr and timeframe.isweekly)
 plotYearlyCpr  = showYCpr or (autoCpr and timeframe.ismonthly)
 
 // =============================================================================
-// CPR plots — Style tab lists each level (dots, like the reference chart)
+// CPR / prev H-L / Camarilla — dotted lines (do not count toward the 64-plot cap)
 // =============================================================================
-dot = plot.style_circles
-plot(plotDailyCpr ? dTC  : na, "Daily TC",  color = #2196f3, style = dot, linewidth = 2)
-plot(plotDailyCpr ? dPiv : na, "Daily CPR", color = #000000, style = dot, linewidth = 2)
-plot(plotDailyCpr ? dBC  : na, "Daily BC",  color = #2196f3, style = dot, linewidth = 2)
+f_dotLevel(plotDailyCpr, dTC,  "D", #2196f3)
+f_dotLevel(plotDailyCpr, dPiv, "D", #000000)
+f_dotLevel(plotDailyCpr, dBC,  "D", #2196f3)
 
-plot(plotWeeklyCpr ? wTC  : na, "Weekly TC",  color = #9c27b0, style = dot, linewidth = 2)
-plot(plotWeeklyCpr ? wPiv : na, "Weekly CPR", color = #000000, style = dot, linewidth = 2)
-plot(plotWeeklyCpr ? wBC  : na, "Weekly BC",  color = #9c27b0, style = dot, linewidth = 2)
+f_dotLevel(plotWeeklyCpr, wTC,  "W", #9c27b0)
+f_dotLevel(plotWeeklyCpr, wPiv, "W", #000000)
+f_dotLevel(plotWeeklyCpr, wBC,  "W", #9c27b0)
 
-plot(plotMonthlyCpr ? mTC  : na, "Monthly TC",  color = #ff9800, style = dot, linewidth = 2)
-plot(plotMonthlyCpr ? mPiv : na, "Monthly CPR", color = #000000, style = dot, linewidth = 2)
-plot(plotMonthlyCpr ? mBC  : na, "Monthly BC",  color = #ff9800, style = dot, linewidth = 2)
+f_dotLevel(plotMonthlyCpr, mTC,  "M", #ff9800)
+f_dotLevel(plotMonthlyCpr, mPiv, "M", #000000)
+f_dotLevel(plotMonthlyCpr, mBC,  "M", #ff9800)
 
-plot(plotYearlyCpr ? yTC  : na, "Yearly TC",  color = #607d8b, style = dot, linewidth = 2)
-plot(plotYearlyCpr ? yPiv : na, "Yearly CPR", color = #000000, style = dot, linewidth = 2)
-plot(plotYearlyCpr ? yBC  : na, "Yearly BC",  color = #607d8b, style = dot, linewidth = 2)
+f_dotLevel(plotYearlyCpr, yTC,  "12M", #607d8b)
+f_dotLevel(plotYearlyCpr, yPiv, "12M", #000000)
+f_dotLevel(plotYearlyCpr, yBC,  "12M", #607d8b)
 
-plot(showPDHL ? dH : na, "Previous Day High",   color = #000000, style = dot, linewidth = 2)
-plot(showPDHL ? dL : na, "Previous Day Low",    color = #000000, style = dot, linewidth = 2)
-plot(showPWHL ? wH : na, "Previous Week High",  color = #000000, style = dot, linewidth = 2)
-plot(showPWHL ? wL : na, "Previous Week Low",   color = #000000, style = dot, linewidth = 2)
-plot(showPMHL ? mH : na, "Previous Month High", color = #000000, style = dot, linewidth = 2)
-plot(showPMHL ? mL : na, "Previous Month Low",  color = #000000, style = dot, linewidth = 2)
-plot(showPYHL ? yH : na, "Previous Year High",  color = #000000, style = dot, linewidth = 2)
-plot(showPYHL ? yL : na, "Previous Year Low",   color = #000000, style = dot, linewidth = 2)
+f_dotLevel(showPDHL, dH, "D", #000000)
+f_dotLevel(showPDHL, dL, "D", #000000)
+f_dotLevel(showPWHL, wH, "W", #000000)
+f_dotLevel(showPWHL, wL, "W", #000000)
+f_dotLevel(showPMHL, mH, "M", #000000)
+f_dotLevel(showPMHL, mL, "M", #000000)
+f_dotLevel(showPYHL, yH, "12M", #000000)
+f_dotLevel(showPYHL, yL, "12M", #000000)
 
-// =============================================================================
-// Camarilla plots
-// =============================================================================
-plot(showDCam and showCamH4 ? dH4 : na, "Daily H4", color = #4caf50, style = dot, linewidth = 2)
-plot(showDCam and showCamH3 ? dH3 : na, "Daily H3", color = #4caf50, style = dot, linewidth = 2)
-plot(showDCam and showCamH3 ? dL3 : na, "Daily L3", color = #f44336, style = dot, linewidth = 2)
-plot(showDCam and showCamH4 ? dL4 : na, "Daily L4", color = #f44336, style = dot, linewidth = 2)
+f_dotLevel(showDCam and showCamH4, dH4, "D", #4caf50)
+f_dotLevel(showDCam and showCamH3, dH3, "D", #4caf50)
+f_dotLevel(showDCam and showCamH3, dL3, "D", #f44336)
+f_dotLevel(showDCam and showCamH4, dL4, "D", #f44336)
 
-plot(showWCam and showCamH4 ? wH4 : na, "Weekly H4", color = #81c784, style = dot, linewidth = 2)
-plot(showWCam and showCamH3 ? wH3 : na, "Weekly H3", color = #81c784, style = dot, linewidth = 2)
-plot(showWCam and showCamH3 ? wL3 : na, "Weekly L3", color = #e57373, style = dot, linewidth = 2)
-plot(showWCam and showCamH4 ? wL4 : na, "Weekly L4", color = #e57373, style = dot, linewidth = 2)
+f_dotLevel(showWCam and showCamH4, wH4, "W", #81c784)
+f_dotLevel(showWCam and showCamH3, wH3, "W", #81c784)
+f_dotLevel(showWCam and showCamH3, wL3, "W", #e57373)
+f_dotLevel(showWCam and showCamH4, wL4, "W", #e57373)
 
-plot(showMCam and showCamH4 ? mH4 : na, "Monthly H4", color = #2e7d32, style = dot, linewidth = 2)
-plot(showMCam and showCamH3 ? mH3 : na, "Monthly H3", color = #2e7d32, style = dot, linewidth = 2)
-plot(showMCam and showCamH3 ? mL3 : na, "Monthly L3", color = #c62828, style = dot, linewidth = 2)
-plot(showMCam and showCamH4 ? mL4 : na, "Monthly L4", color = #c62828, style = dot, linewidth = 2)
+f_dotLevel(showMCam and showCamH4, mH4, "M", #2e7d32)
+f_dotLevel(showMCam and showCamH3, mH3, "M", #2e7d32)
+f_dotLevel(showMCam and showCamH3, mL3, "M", #c62828)
+f_dotLevel(showMCam and showCamH4, mL4, "M", #c62828)
 
 // =============================================================================
 // VWAP (session)
@@ -234,8 +247,8 @@ float vwapSd  = sumV == 0 ? 0.0 : math.sqrt(math.max(sumP2V / sumV - vwapVal * v
 pVwap = plot(showVWAP ? vwapVal : na, "VWAP", color = vwapCol, linewidth = 2)
 pVu1  = plot(showVWAP and showVwapBand ? vwapVal + vwapSd * vwapSd1 : na, "VWAP +1 SD", color = color.new(vwapCol, 40))
 pVl1  = plot(showVWAP and showVwapBand ? vwapVal - vwapSd * vwapSd1 : na, "VWAP -1 SD", color = color.new(vwapCol, 40))
-plot(showVWAP and showVwapBand ? vwapVal + vwapSd * vwapSd2 : na, "VWAP +2 SD", color = color.new(vwapCol, 65), style = plot.style_circles)
-plot(showVWAP and showVwapBand ? vwapVal - vwapSd * vwapSd2 : na, "VWAP -2 SD", color = color.new(vwapCol, 65), style = plot.style_circles)
+plot(showVWAP and showVwapBand ? vwapVal + vwapSd * vwapSd2 : na, "VWAP +2 SD", color = color.new(vwapCol, 65), linewidth = 1)
+plot(showVWAP and showVwapBand ? vwapVal - vwapSd * vwapSd2 : na, "VWAP -2 SD", color = color.new(vwapCol, 65), linewidth = 1)
 fill(pVu1, pVl1, color = showVWAP and showVwapBand ? color.new(vwapCol, 88) : na, title = "VWAP band fill")
 
 // =============================================================================
@@ -253,10 +266,11 @@ plot(ma5On ? f_mtf(ma5Src, ma5Len, ma5Typ, ma5Tf) : na, "MA #5", color = ma5Col,
 float rsiVal = f_mtfRsi(rsiLen, rsiTf)
 bool rsiOBNow = showRSI and rsiVal >= rsiOB
 bool rsiOSNow = showRSI and rsiVal <= rsiOS
-plotshape(showRSI and rsiMarks and rsiOBNow and not rsiOBNow[1], title = "RSI overbought", style = shape.triangledown, location = location.abovebar, color = #f44336, size = size.tiny)
-plotshape(showRSI and rsiMarks and rsiOSNow and not rsiOSNow[1], title = "RSI oversold", style = shape.triangleup, location = location.belowbar, color = #4caf50, size = size.tiny)
+if showRSI and rsiMarks and rsiOBNow and not rsiOBNow[1]
+    label.new(bar_index, high, "RSI OB", style = label.style_label_down, color = #f44336, textcolor = color.white, size = size.tiny)
+if showRSI and rsiMarks and rsiOSNow and not rsiOSNow[1]
+    label.new(bar_index, low, "RSI OS", style = label.style_label_up, color = #4caf50, textcolor = color.white, size = size.tiny)
 barcolor(showRSI and rsiPaint ? (rsiOBNow ? color.new(#f44336, 70) : rsiOSNow ? color.new(#4caf50, 70) : na) : na)
-plot(showRSI ? rsiVal : na, "RSI", display = display.data_window)
 
 // =============================================================================
 // Supertrend
@@ -265,11 +279,14 @@ simple string stTfUsed = stTf == "" ? timeframe.period : stTf
 [stLine, stDir] = request.security(syminfo.tickerid, stTfUsed, ta.supertrend(stFactor, stAtr), barmerge.gaps_off, barmerge.lookahead_off)
 bool stBull = showST and stDir < 0
 bool stBear = showST and stDir > 0
-pST = plot(showST ? stLine : na, "Supertrend", color = stBull ? stUpCol : stDnCol, linewidth = 2, style = plot.style_linebr)
-pPx = plot(showST and stFill ? close : na, "ST fill anchor", display = display.none)
-fill(pST, pPx, color = showST and stFill ? (stBull ? color.new(stUpCol, 88) : color.new(stDnCol, 88)) : na, title = "Supertrend fill")
-plotshape(showST and stBull and stBear[1], title = "ST bull flip", style = shape.labelup, location = location.belowbar, color = stUpCol, text = "ST", textcolor = color.white, size = size.tiny)
-plotshape(showST and stBear and stBull[1], title = "ST bear flip", style = shape.labeldown, location = location.abovebar, color = stDnCol, text = "ST", textcolor = color.white, size = size.tiny)
+stCol = stBull ? stUpCol : stDnCol
+pST = plot(showST ? stLine : na, "Supertrend", color = stCol, linewidth = 2, style = plot.style_linebr)
+pPx = plot(showST and stFill ? close : na, "ST fill anchor", display = display.none, editable = false)
+fill(pST, pPx, color = showST and stFill ? color.new(stCol, 88) : na, title = "Supertrend fill")
+if showST and stBull and stBear[1]
+    label.new(bar_index, low, "ST", style = label.style_label_up, color = stUpCol, textcolor = color.white, size = size.tiny)
+if showST and stBear and stBull[1]
+    label.new(bar_index, high, "ST", style = label.style_label_down, color = stDnCol, textcolor = color.white, size = size.tiny)
 
 // =============================================================================
 // Alerts
