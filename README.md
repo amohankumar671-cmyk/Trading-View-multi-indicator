@@ -26,6 +26,7 @@ Matches the Pivots reference:
 - Line width **3**
 - **S3** and **R3** on by default, **black**
 - P, S1, R1, S2, R2, S4, R4, S5, R5 available, off, orange
+- Each day’s levels are drawn only across that session (open → close), then a new segment starts the next day (no infinite `extend.right`)
 
 ## Add to TradingView
 
