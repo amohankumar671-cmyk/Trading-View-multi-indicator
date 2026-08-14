@@ -2,7 +2,7 @@
 
 File: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
 
-Daily **CPR** (KGS-style), **Camarilla** (S3/R3 like the Pivots dialog), **VWAP**, and **moving averages**.
+Daily **CPR** (KGS-style), **Camarilla** (S3/R3 like the Pivots dialog), **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0).
 
 ## CPR (Daily only)
 
@@ -27,6 +27,10 @@ Matches the Pivots reference:
 - **S3** and **R3** on by default, **black**
 - P, S1, R1, S2, R2, S4, R4, S5, R5 available, off, orange
 - Each day’s levels are drawn only across that session (open → close), then a new segment starts the next day (no infinite `extend.right`)
+
+## AlphaTrend
+
+Original AlphaTrend by KivancOzbilgic (MPL 2.0). Defaults match the published script (multiplier 1, period 14, signals on). Turn it off with **Show AlphaTrend**. Use **Change calculation (no volume data)?** on symbols without volume (uses RSI instead of MFI).
 
 ## Add to TradingView
 

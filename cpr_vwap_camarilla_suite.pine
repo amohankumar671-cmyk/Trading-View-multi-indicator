@@ -212,6 +212,17 @@ ma5Tf  = input.timeframe("D", "MA5 TF", inline = "ma5", group = gMa)
 ma5Col = input.color(#ffffff, "MA5 color", inline = "ma5", group = gMa)
 
 // =============================================================================
+// ------- ALPHATREND (KivancOzbilgic, MPL 2.0) -------
+// =============================================================================
+gAt = "------- ALPHATREND -------"
+showAT        = input.bool(true, "Show AlphaTrend", group = gAt)
+atCoeff       = input.float(1, "Multiplier", step = 0.1, group = gAt)
+atAP          = input.int(14, "Common Period", minval = 1, group = gAt)
+atSrc         = input.source(close, "Source", group = gAt)
+atShowSignals = input.bool(true, "Show Signals?", group = gAt)
+atNoVolume    = input.bool(false, "Change calculation (no volume data)?", group = gAt)
+
+// =============================================================================
 // Daily levels
 // =============================================================================
 [dH, dL, dC] = f_prevDay()
@@ -284,9 +295,43 @@ plot(ma3On ? f_mtf(ma3Src, ma3Len, ma3Typ, ma3Tf) : na, "MA #3", color = ma3Col,
 plot(ma4On ? f_mtf(ma4Src, ma4Len, ma4Typ, ma4Tf) : na, "MA #4", color = ma4Col, linewidth = 2)
 plot(ma5On ? f_mtf(ma5Src, ma5Len, ma5Typ, ma5Tf) : na, "MA #5", color = ma5Col, linewidth = 2)
 
+// AlphaTrend — author/developer © KivancOzbilgic, Mozilla Public License 2.0
+// https://mozilla.org/MPL/2.0/
+float atAtr = ta.sma(ta.tr, atAP)
+float upT = low - atAtr * atCoeff
+float downT = high + atAtr * atCoeff
+float AlphaTrend = 0.0
+AlphaTrend := (atNoVolume ? ta.rsi(atSrc, atAP) >= 50 : ta.mfi(hlc3, atAP) >= 50) ? upT < nz(AlphaTrend[1]) ? nz(AlphaTrend[1]) : upT : downT > nz(AlphaTrend[1]) ? nz(AlphaTrend[1]) : downT
+
+color atFill = AlphaTrend > AlphaTrend[2] ? #00E60F : AlphaTrend < AlphaTrend[2] ? #80000B : AlphaTrend[1] > AlphaTrend[3] ? #00E60F : #80000B
+atK1 = plot(showAT ? AlphaTrend : na, "AlphaTrend", color = color.new(#0022FC, 0), linewidth = 3)
+atK2 = plot(showAT ? AlphaTrend[2] : na, "AlphaTrend[2]", color = color.new(#FC0400, 0), linewidth = 3)
+fill(atK1, atK2, color = showAT ? atFill : na, title = "AlphaTrend fill")
+
+bool buySignalk = ta.crossover(AlphaTrend, AlphaTrend[2])
+bool sellSignalk = ta.crossunder(AlphaTrend, AlphaTrend[2])
+int K1 = ta.barssince(buySignalk)
+int K2 = ta.barssince(sellSignalk)
+int O1 = ta.barssince(buySignalk[1])
+int O2 = ta.barssince(sellSignalk[1])
+
+plotshape(showAT and buySignalk and atShowSignals and O1 > K2 ? AlphaTrend[2] * 0.9999 : na, title = "AT BUY", text = "BUY", location = location.absolute, style = shape.labelup, size = size.tiny, color = color.new(#0022FC, 0), textcolor = color.new(color.white, 0))
+plotshape(showAT and sellSignalk and atShowSignals and O2 > K1 ? AlphaTrend[2] * 1.0001 : na, title = "AT SELL", text = "SELL", location = location.absolute, style = shape.labeldown, size = size.tiny, color = color.new(color.maroon, 0), textcolor = color.new(color.white, 0))
+
 alertcondition(showVWAP and ta.crossover(close, vwapVal), "Cross above VWAP", "Price crossed above VWAP")
 alertcondition(showVWAP and ta.crossunder(close, vwapVal), "Cross below VWAP", "Price crossed below VWAP")
 alertcondition(showDCpr and ta.crossover(close, dTC), "Break above Daily CPR", "Price broke above Daily TC")
 alertcondition(showDCpr and ta.crossunder(close, dBC), "Break below Daily CPR", "Price broke below Daily BC")
 alertcondition(camOn and camR3On and ta.crossover(close, cR3), "Camarilla R3 break", "Price broke Camarilla R3")
 alertcondition(camOn and camS3On and ta.crossunder(close, cS3), "Camarilla S3 break", "Price broke Camarilla S3")
+
+alertcondition(showAT and buySignalk and O1 > K2, title = "Potential BUY Alarm", message = "BUY SIGNAL!")
+alertcondition(showAT and sellSignalk and O2 > K1, title = "Potential SELL Alarm", message = "SELL SIGNAL!")
+alertcondition(showAT and buySignalk[1] and O1[1] > K2, title = "Confirmed BUY Alarm", message = "BUY SIGNAL APPROVED!")
+alertcondition(showAT and sellSignalk[1] and O2[1] > K1, title = "Confirmed SELL Alarm", message = "SELL SIGNAL APPROVED!")
+alertcondition(showAT and ta.cross(close, AlphaTrend), title = "Price Cross Alert", message = "Price - AlphaTrend Crossing!")
+alertcondition(showAT and ta.crossover(low, AlphaTrend), title = "Candle CrossOver Alarm", message = "LAST BAR is ABOVE ALPHATREND")
+alertcondition(showAT and ta.crossunder(high, AlphaTrend), title = "Candle CrossUnder Alarm", message = "LAST BAR is BELOW ALPHATREND!")
+alertcondition(showAT and ta.cross(close[1], AlphaTrend[1]), title = "Price Cross Alert After Bar Close", message = "Price - AlphaTrend Crossing!")
+alertcondition(showAT and ta.crossover(low[1], AlphaTrend[1]), title = "Candle CrossOver Alarm After Bar Close", message = "LAST BAR is ABOVE ALPHATREND!")
+alertcondition(showAT and ta.crossunder(high[1], AlphaTrend[1]), title = "Candle CrossUnder Alarm After Bar Close", message = "LAST BAR is BELOW ALPHATREND!")
