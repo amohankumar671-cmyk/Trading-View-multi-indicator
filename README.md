@@ -1,48 +1,34 @@
 # TradingView multi-indicator
 
-One overlay script: **CPR**, **previous high/low**, **Camarilla**, **VWAP**, **5 moving averages**, **RSI**, and **Supertrend**.
+Overlay script: **CPR**, **previous high/low**, **daily R/S pivots**, **Camarilla** (optional), **VWAP**, and **moving averages**.
 
 File: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
+
+RSI and Supertrend are not included.
 
 ## Add to TradingView
 
 1. Open a chart → **Pine Editor**
 2. Paste `cpr_vwap_camarilla_suite.pine`
 3. **Save** → **Add to chart**
-4. Open settings (**Inputs**) and tick only what you want
+4. Use **Inputs** tick boxes to turn modules on or off
+5. Use the **Style** tab to hide or recolor Daily TC / CPR / BC, R1–R3, S1–S3, and previous highs/lows
 
-## Inputs layout
+## CPR style (Trend Checker look)
 
-Groups match a Trend Checker-style panel. Each row is a tick box (plus type / length where needed).
+Daily levels plot as **dotted circles**:
 
-**CPR LEVELS**
-- Auto Select CPR (intraday → daily, daily chart → weekly, weekly → monthly, monthly → yearly)
-- Show Daily / Weekly / Monthly / Yearly CPR
-- Same row: PDH/PDL, PWH/PWL, PMH/PML, PYH/PYL
+- **Daily TC / CPR / BC** — blue
+- **Daily R1 R2 R3** — green
+- **Daily S1 S2 S3** — red
+- **Previous day / week / month / year high & low** — black
 
-**CAMARILLA**
-- Daily / Weekly / Monthly tick boxes
-- H4/L4 and H3/L3 tick boxes
+Weekly / monthly / yearly CPR use dotted lines so the script stays under TradingView’s 64-plot limit.
 
-**VWAP**
-- Show VWAP, Show Bands, source, σ1, σ2, color
+## Inputs
 
-**MOVING AVERAGES**
-- MA #1–#5: enable, type, source, length, timeframe (blank = chart), color
-- Defaults: 10 / 20 / 50 SMA on; 100 / 200 SMA off (daily TF)
-
-**RSI**
-- Show RSI, length, TF, OB / OS, markers, bar color
-
-**SUPERTREND**
-- Show Supertrend, ATR, factor, TF, fill, up/down colors
-
-## Style tab
-
-Every level is its own plot, so you can hide or recolor them individually: Daily TC / CPR / BC, previous highs/lows, Camarilla H3/H4/L3/L4, VWAP, each MA, Supertrend.
-
-CPR and Camarilla use **dotted lines** for the current day/week/month (TradingView’s 64-plot limit cannot draw every level as circle plots). VWAP, MAs, and Supertrend stay as normal plots in the Style tab.
-
-## Alerts
-
-Supertrend flips, RSI OB/OS, VWAP crosses, Daily CPR breaks, Daily Camarilla H4/L4 breaks.
+- **CPR LEVELS** — Auto Select, Daily/Weekly/Monthly/Yearly CPR, PDH/PDL (and weekly/monthly/yearly H/L)
+- **DAILY PIVOTS** — R1/S1, R2/S2, R3/S3
+- **CAMARILLA** — off by default; Daily H4/L4 and H3/L3
+- **VWAP** — session VWAP (yellow by default), optional bands
+- **MOVING AVERAGES** — five MAs with type, source, length, timeframe, color
