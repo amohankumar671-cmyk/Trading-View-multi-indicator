@@ -5,13 +5,19 @@ indicator("CPR VWAP Camarilla MA", overlay = true, max_lines_count = 500, max_la
 // Helpers
 // =============================================================================
 f_ma(float src, simple int len, string kind) =>
+    float ema  = ta.ema(src, len)
+    float wma  = ta.wma(src, len)
+    float hma  = ta.hma(src, len)
+    float vwma = ta.vwma(src, len)
+    float rma  = ta.rma(src, len)
+    float sma  = ta.sma(src, len)
     switch kind
-        "EMA"  => ta.ema(src, len)
-        "WMA"  => ta.wma(src, len)
-        "HMA"  => ta.hma(src, len)
-        "VWMA" => ta.vwma(src, len)
-        "RMA"  => ta.rma(src, len)
-        => ta.sma(src, len)
+        "EMA"  => ema
+        "WMA"  => wma
+        "HMA"  => hma
+        "VWMA" => vwma
+        "RMA"  => rma
+        => sma
 
 f_mtf(float src, simple int len, string kind, simple string tf) =>
     tf == "" or tf == timeframe.period ? f_ma(src, len, kind) : request.security(syminfo.tickerid, tf, f_ma(src, len, kind), barmerge.gaps_off, barmerge.lookahead_off)
@@ -45,18 +51,18 @@ f_cam(float h, float l, float c) =>
     float s5 = not na(r5) ? c - (r5 - c) : na
     [pp, r1, r2, r3, r4, r5, s1, s2, s3, s4, s5]
 
+f_camTxt(string name, bool showPx, float p) =>
+    name + (showPx ? " " + str.tostring(p, format.mintick) : "")
+
+f_camLabStyle(bool labLeft) =>
+    labLeft ? label.style_label_right : label.style_label_left
+
 // Historical daily segments + left labels (TradingView Pivots-style).
-f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool showPx, bool labLeft, int lookback) =>
+f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool showPx, bool labLeft, int lookback, bool newDay, int t0) =>
     var line ln = na
     var label curLab = na
     var line[] hist = array.new<line>()
     var label[] labs = array.new<label>()
-    bool newDay = ta.change(time("D")) != 0
-    int t0 = time("D")
-    f_txt(float p) =>
-        name + (showPx ? " " + str.tostring(p, format.mintick) : "")
-    f_labStyle() =>
-        labLeft ? label.style_label_right : label.style_label_left
     if not on or na(px)
         if not na(ln)
             line.delete(ln)
@@ -75,7 +81,7 @@ f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool 
             line.set_extend(ln, extend.none)
             array.push(hist, ln)
             if showLab
-                array.push(labs, label.new(line.get_x1(ln), px[1], f_txt(px[1]), xloc = xloc.bar_time, style = f_labStyle(), color = color.new(color.white, 100), textcolor = col, size = size.small))
+                array.push(labs, label.new(line.get_x1(ln), px[1], f_camTxt(name, showPx, px[1]), xloc = xloc.bar_time, style = f_camLabStyle(labLeft), color = color.new(color.white, 100), textcolor = col, size = size.small))
             while array.size(hist) > lookback
                 line.delete(array.shift(hist))
             while array.size(labs) > lookback
@@ -91,10 +97,10 @@ f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool 
         if showLab
             int lx = labLeft ? t0 : time
             if na(curLab)
-                curLab := label.new(lx, px, f_txt(px), xloc = xloc.bar_time, style = f_labStyle(), color = color.new(color.white, 100), textcolor = col, size = size.small)
+                curLab := label.new(lx, px, f_camTxt(name, showPx, px), xloc = xloc.bar_time, style = f_camLabStyle(labLeft), color = color.new(color.white, 100), textcolor = col, size = size.small)
             else
                 label.set_xy(curLab, lx, px)
-                label.set_text(curLab, f_txt(px))
+                label.set_text(curLab, f_camTxt(name, showPx, px))
                 label.set_textcolor(curLab, col)
         else if not na(curLab)
             label.delete(curLab)
@@ -227,17 +233,19 @@ plot(showPDL ? dL : na, "Prev Day Low",  color = colBlk, linewidth = 1)
 
 bool camOn = showCam
 bool labLeft = camLabPos == "Left"
-f_camLevel(camOn and camPOn,  cPP, camPCol,  camW, "P",  camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camR1On, cR1, camR1Col, camW, "R1", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camR2On, cR2, camR2Col, camW, "R2", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camR3On, cR3, camR3Col, camW, "R3", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camR4On, cR4, camR4Col, camW, "R4", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camR5On, cR5, camR5Col, camW, "R5", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camS1On, cS1, camS1Col, camW, "S1", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camS2On, cS2, camS2Col, camW, "S2", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camS3On, cS3, camS3Col, camW, "S3", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camS4On, cS4, camS4Col, camW, "S4", camLabels, camPrices, labLeft, camBack)
-f_camLevel(camOn and camS5On, cS5, camS5Col, camW, "S5", camLabels, camPrices, labLeft, camBack)
+bool newDay = ta.change(time("D")) != 0
+int t0 = time("D")
+f_camLevel(camOn and camPOn,  cPP, camPCol,  camW, "P",  camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camR1On, cR1, camR1Col, camW, "R1", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camR2On, cR2, camR2Col, camW, "R2", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camR3On, cR3, camR3Col, camW, "R3", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camR4On, cR4, camR4Col, camW, "R4", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camR5On, cR5, camR5Col, camW, "R5", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camS1On, cS1, camS1Col, camW, "S1", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camS2On, cS2, camS2Col, camW, "S2", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camS3On, cS3, camS3Col, camW, "S3", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camS4On, cS4, camS4Col, camW, "S4", camLabels, camPrices, labLeft, camBack, newDay, t0)
+f_camLevel(camOn and camS5On, cS5, camS5Col, camW, "S5", camLabels, camPrices, labLeft, camBack, newDay, t0)
 
 // =============================================================================
 // VWAP / MA
