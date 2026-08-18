@@ -1,8 +1,9 @@
 # TradingView multi-indicator
 
-File: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
+Two overlays in the repo root:
 
-Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, **AlphaTrend** (KivancOzbilgic, MPL 2.0), and **volume profile** (POC / VAH / VAL) in one overlay. Turn volume profile off with **Show volume profile**.
+- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0). This file is unchanged.
+- [`volume_profile.pine`](volume_profile.pine) — Session **volume profile** (POC / VAH / VAL) and **VP BUY / SELL**. Add this as a second script.
 
 ## CPR (Daily only)
 
@@ -34,14 +35,19 @@ Original AlphaTrend by KivancOzbilgic (MPL 2.0). Defaults match the published sc
 
 ## Volume Profile
 
-In the same file (inputs group **VOLUME PROFILE**). Best on 1–15 minute charts:
+File: [`volume_profile.pine`](volume_profile.pine)
+
+Add it **separately** (Pine Editor → Save → Add to chart). Use on 1–15 minute charts.
 
 - Session **POC**, **VAH**, **VAL**, histogram, previous-session levels
 - Checks: inside value, POC test, VAH/VAL break
-- **VP BUY / VP SELL** on a strong break (bar change ≥ ATR × multiplier and volume ≥ average). Default source is **previous session** VAH/VAL
+- **BUY / SELL** on a strong break (bar change ≥ ATR × multiplier and volume ≥ average). Default source is **previous session** VAH/VAL
 
 These signals are a filter, not a complete system. False breaks are common at the open and around news.
 
 ## Add to TradingView
 
-Paste [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) into Pine Editor → Save → Add to chart.
+Paste each `.pine` file into Pine Editor → Save → Add to chart.
+
+- CPR / Camarilla / VWAP / MAs / AlphaTrend: `cpr_vwap_camarilla_suite.pine`
+- Volume profile: `volume_profile.pine`
