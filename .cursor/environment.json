@@ -1,0 +1,4 @@
+{
+  "name": "TradingView multi-indicator",
+  "install": "bash scripts/cloud-agent-install.sh"
+}
