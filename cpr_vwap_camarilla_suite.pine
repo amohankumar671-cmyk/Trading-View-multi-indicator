@@ -25,6 +25,9 @@ f_mtf(float src, simple int len, string kind, simple string tf) =>
 f_prevDay() =>
     request.security(syminfo.tickerid, "D", [high[1], low[1], close[1]], barmerge.gaps_off, barmerge.lookahead_on)
 
+f_prevWeek() =>
+    request.security(syminfo.tickerid, "W", [high[1], low[1], close[1]], barmerge.gaps_off, barmerge.lookahead_on)
+
 f_cpr(float h, float l, float c) =>
     float piv = (h + l + c) / 3.0
     float bc  = (h + l) / 2.0
@@ -58,7 +61,7 @@ f_camLabStyle(bool labLeft) =>
     labLeft ? label.style_label_right : label.style_label_left
 
 // One Camarilla segment per trading day: session open → session close (no extend.right).
-f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool showPx, bool labLeft, int lookback, bool newDay, int t0, int t1) =>
+f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool showPx, bool labLeft, int lookback, bool newDay, int t0, int t1, string lnStyle = line.style_solid) =>
     var line ln = na
     var label curLab = na
     var line[] hist = array.new<line>()
@@ -88,15 +91,16 @@ f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool 
                 line.delete(array.shift(hist))
             while array.size(labs) > lookback
                 label.delete(array.shift(labs))
-            ln := line.new(t0, px, x2, px, xloc = xloc.bar_time, extend = extend.none, color = col, width = w)
+            ln := line.new(t0, px, x2, px, xloc = xloc.bar_time, extend = extend.none, color = col, width = w, style = lnStyle)
         else if na(ln)
-            ln := line.new(t0, px, x2, px, xloc = xloc.bar_time, extend = extend.none, color = col, width = w)
+            ln := line.new(t0, px, x2, px, xloc = xloc.bar_time, extend = extend.none, color = col, width = w, style = lnStyle)
         else
             line.set_xy1(ln, t0, px)
             line.set_xy2(ln, x2, px)
             line.set_extend(ln, extend.none)
             line.set_color(ln, col)
             line.set_width(ln, w)
+            line.set_style(ln, lnStyle)
         if showLab
             int lx = labLeft ? t0 : x2
             if na(curLab)
@@ -115,6 +119,7 @@ colBlk  = #000000
 colGrn  = #089981
 colRed  = #F23645
 colOrg  = #ff9800
+colPink = #ec407a
 
 // =============================================================================
 // ------- CPR (Daily only) -------
@@ -125,6 +130,30 @@ showDCpr = input.bool(true, "Show Daily CPR (Manual)", group = gCpr)
 showPDH  = input.bool(true, "Show Prev Day High", group = gCpr)
 showPDL  = input.bool(true, "Show Prev Day Low", group = gCpr)
 showDRS  = input.bool(true, "Show Daily R1-R4 / S1-S4", group = gCpr)
+
+// =============================================================================
+// ------- WEEKLY CPR -------
+// =============================================================================
+gWCpr = "------- WEEKLY CPR -------"
+showWCpr = input.bool(true, "Show Weekly CPR (Manual)", group = gWCpr)
+showPWH  = input.bool(true, "Show Prev Weekly High", group = gWCpr)
+showPWL  = input.bool(true, "Show Prev Weekly Low", group = gWCpr)
+showWRS  = input.bool(true, "Show Weekly R1-R4 / S1-S4", group = gWCpr)
+wCprW    = input.int(3, "Weekly CPR width", minval = 1, maxval = 5, group = gWCpr)
+
+wTcCol  = input.color(colPink, "Weekly TC", inline = "wtc", group = gWCpr)
+wPivCol = input.color(colPink, "Weekly Pivot", inline = "wpiv", group = gWCpr)
+wBcCol  = input.color(colPink, "Weekly BC", inline = "wbc", group = gWCpr)
+wR1Col  = input.color(colPink, "Weekly R1", inline = "wr1", group = gWCpr)
+wR2Col  = input.color(colPink, "Weekly R2", inline = "wr2", group = gWCpr)
+wR3Col  = input.color(colPink, "Weekly R3", inline = "wr3", group = gWCpr)
+wR4Col  = input.color(colPink, "Weekly R4", inline = "wr4", group = gWCpr)
+wS1Col  = input.color(colPink, "Weekly S1", inline = "ws1", group = gWCpr)
+wS2Col  = input.color(colPink, "Weekly S2", inline = "ws2", group = gWCpr)
+wS3Col  = input.color(colPink, "Weekly S3", inline = "ws3", group = gWCpr)
+wS4Col  = input.color(colPink, "Weekly S4", inline = "ws4", group = gWCpr)
+wPwhCol = input.color(colPink, "Prev Weekly High", inline = "wpwh", group = gWCpr)
+wPwlCol = input.color(colPink, "Prev Weekly Low", inline = "wpwl", group = gWCpr)
 
 // =============================================================================
 // ------- CAMARILLA -------
@@ -228,6 +257,9 @@ atNoVolume    = input.bool(false, "Change calculation (no volume data)?", group 
 [dH, dL, dC] = f_prevDay()
 [dTC, dPiv, dBC] = f_cpr(dH, dL, dC)
 [dR1, dR2, dR3, dR4, dS1, dS2, dS3, dS4] = f_rs(dH, dL, dC)
+[wH, wL, wC] = f_prevWeek()
+[wTC, wPiv, wBC] = f_cpr(wH, wL, wC)
+[wR1, wR2, wR3, wR4, wS1, wS2, wS3, wS4] = f_rs(wH, wL, wC)
 [cPP, cR1, cR2, cR3, cR4, cR5, cS1, cS2, cS3, cS4, cS5] = f_cam(dH, dL, dC)
 
 // KGS layout: dotted circles, stepped by day, colored price-scale titles
@@ -262,6 +294,24 @@ f_camLevel(camOn and camS2On, cS2, camS2Col, camW, "S2", camLabels, camPrices, l
 f_camLevel(camOn and camS3On, cS3, camS3Col, camW, "S3", camLabels, camPrices, labLeft, camBack, newDay, t0, t1)
 f_camLevel(camOn and camS4On, cS4, camS4Col, camW, "S4", camLabels, camPrices, labLeft, camBack, newDay, t0, t1)
 f_camLevel(camOn and camS5On, cS5, camS5Col, camW, "S5", camLabels, camPrices, labLeft, camBack, newDay, t0, t1)
+
+bool newWeek = ta.change(time("W")) != 0
+int wt0 = time("W")
+int wt1 = time_close("W")
+int wBack = 12
+f_camLevel(showWCpr, wTC,  wTcCol,  wCprW, "W TC",    true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWCpr, wPiv, wPivCol, wCprW, "W Pivot", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWCpr, wBC,  wBcCol,  wCprW, "W BC",    true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wR1, wR1Col, wCprW, "W R1", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wR2, wR2Col, wCprW, "W R2", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wR3, wR3Col, wCprW, "W R3", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wR4, wR4Col, wCprW, "W R4", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wS1, wS1Col, wCprW, "W S1", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wS2, wS2Col, wCprW, "W S2", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wS3, wS3Col, wCprW, "W S3", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showWRS, wS4, wS4Col, wCprW, "W S4", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showPWH, wH, wPwhCol, wCprW, "PWH", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
+f_camLevel(showPWL, wL, wPwlCol, wCprW, "PWL", true, true, labLeft, wBack, newWeek, wt0, wt1, line.style_dotted)
 
 // =============================================================================
 // VWAP / MA
@@ -322,6 +372,8 @@ alertcondition(showVWAP and ta.crossover(close, vwapVal), "Cross above VWAP", "P
 alertcondition(showVWAP and ta.crossunder(close, vwapVal), "Cross below VWAP", "Price crossed below VWAP")
 alertcondition(showDCpr and ta.crossover(close, dTC), "Break above Daily CPR", "Price broke above Daily TC")
 alertcondition(showDCpr and ta.crossunder(close, dBC), "Break below Daily CPR", "Price broke below Daily BC")
+alertcondition(showWCpr and ta.crossover(close, wTC), "Break above Weekly CPR", "Price broke above Weekly TC")
+alertcondition(showWCpr and ta.crossunder(close, wBC), "Break below Weekly CPR", "Price broke below Weekly BC")
 alertcondition(camOn and camR3On and ta.crossover(close, cR3), "Camarilla R3 break", "Price broke Camarilla R3")
 alertcondition(camOn and camS3On and ta.crossunder(close, cS3), "Camarilla S3 break", "Price broke Camarilla S3")
 
