@@ -1,8 +1,8 @@
 # TradingView multi-indicator
 
 Files:
-- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0).
-- [`volume_profile_checker.pine`](volume_profile_checker.pine) — Session **volume profile** (POC / VAH / VAL) with checks against VWAP and CPR from the suite.
+- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0). No volume profile.
+- [`volume_profile.pine`](volume_profile.pine) — Session **volume profile** (POC / VAH / VAL) as a separate overlay.
 
 ## CPR (Daily only)
 
@@ -16,22 +16,6 @@ Inputs:
 Daily CPR follows **CPR by KGS**: dotted circle plots, blue CPR band, green R1–R4, red S1–S4, black Prev Day High/Low. Price-scale labels use those plot titles (Daily TC, Daily Pivot, Daily BC, …).
 
 Weekly / monthly / yearly / next-period CPR are removed.
-
-## Volume Profile Checker
-
-File: [`volume_profile_checker.pine`](volume_profile_checker.pine)
-
-Intraday **session volume profile** built from the same daily session, VWAP, and CPR helpers as the suite. Use it on 1–15 minute charts (a daily bar has no profile to build).
-
-It:
-- Splits the session high–low into rows and drops each bar’s volume into the rows it traded through
-- Marks **POC** (highest-volume row), **VAH** / **VAL** (70% value area by default), and a right-edge histogram
-- Keeps **previous session** POC / VAH / VAL as dotted circles
-- **Checks** whether price is inside value, testing POC, or breaking VAH/VAL
-- **Checks confluence** with daily VWAP and CPR (VWAP near POC, CPR pivot inside value, optional Camarilla S3/R3 vs VAL/VAH)
-- Shows a status table and alertconditions for those checks
-
-Paste it as a second indicator, or use it alone with CPR/VWAP overlays enabled.
 
 ## Camarilla
 
@@ -48,6 +32,22 @@ Matches the Pivots reference:
 
 Original AlphaTrend by KivancOzbilgic (MPL 2.0). Defaults match the published script (multiplier 1, period 14, signals on). Turn it off with **Show AlphaTrend**. Use **Change calculation (no volume data)?** on symbols without volume (uses RSI instead of MFI).
 
+## Volume Profile
+
+File: [`volume_profile.pine`](volume_profile.pine)
+
+Add this as a **second** indicator. It is not part of the CPR suite.
+
+Intraday **session volume profile** on 1–15 minute charts:
+- Splits the session high–low into rows and drops each bar’s volume into the rows it traded through
+- Marks **POC** (highest-volume row), **VAH** / **VAL** (70% value area by default), and a right-edge histogram
+- Keeps **previous session** POC / VAH / VAL as dotted circles
+- Checks whether price is inside value, testing POC, or breaking VAH/VAL
+- Status table and alerts for those events
+
 ## Add to TradingView
 
-Paste a `.pine` file into Pine Editor → Save → Add to chart. Use `cpr_vwap_camarilla_suite.pine` for CPR / Camarilla / VWAP / MAs / AlphaTrend, and `volume_profile_checker.pine` when you need session volume-profile levels and confluence checks.
+Paste a `.pine` file into Pine Editor → Save → Add to chart.
+
+- CPR / Camarilla / VWAP / MAs / AlphaTrend: `cpr_vwap_camarilla_suite.pine`
+- Volume profile: `volume_profile.pine`
