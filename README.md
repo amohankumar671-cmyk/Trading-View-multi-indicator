@@ -43,7 +43,10 @@ Intraday **session volume profile** on 1–15 minute charts:
 - Marks **POC** (highest-volume row), **VAH** / **VAL** (70% value area by default), and a right-edge histogram
 - Keeps **previous session** POC / VAH / VAL as dotted circles
 - Checks whether price is inside value, testing POC, or breaking VAH/VAL
+- **BUY / SELL** on a *strong* break: close leaves value, bar change ≥ ATR × multiplier, and volume ≥ average (defaults use **previous session** VAH/VAL because today’s levels still move)
 - Status table and alerts for those events
+
+These signals are a filter for imbalance after value, not a complete system. False breaks are common at the open and around news; use a stop (for example back inside the value area).
 
 ## Add to TradingView
 

@@ -101,6 +101,17 @@ bgVpStatus = input.bool(true, "Background: inside / outside value area", group =
 showTable  = input.bool(true, "Show status table", group = gChk)
 showMarks  = input.bool(true, "Mark POC tests and VA breaks", group = gChk)
 
+gSig = "------- BUY / SELL -------"
+showSignals = input.bool(true, "Show BUY / SELL on strong breaks", group = gSig)
+sigPrev     = input.bool(true, "Break previous session VAH / VAL", tooltip = "More stable. Buy = close breaks above yesterday's VAH. Sell = close breaks below yesterday's VAL.", group = gSig)
+sigCurr     = input.bool(false, "Break current session VAH / VAL", tooltip = "Noisier because today's VAH/VAL still move. Off by default.", group = gSig)
+atrLen      = input.int(14, "ATR length", minval = 1, group = gSig)
+atrMult     = input.float(0.5, "Min bar change vs ATR", minval = 0.1, step = 0.1, tooltip = "High-change filter: |close - close[1]| must be at least this times ATR so tiny pokes do not fire.", group = gSig)
+volLen      = input.int(20, "Volume average length", minval = 1, group = gSig)
+volMult     = input.float(1.2, "Min volume vs average", minval = 0.0, step = 0.1, tooltip = "Break bar volume must be at least this times SMA(volume). Set 0 to ignore volume.", group = gSig)
+needBody    = input.bool(true, "Require bullish / bearish close vs open", group = gSig)
+fromInside  = input.bool(true, "Current-session break must leave value", tooltip = "For current VAH/VAL signals, the previous close must be inside the value area.", group = gSig)
+
 float vol = nz(volume)
 bool newDay = ta.change(time("D")) != 0
 
@@ -193,6 +204,24 @@ bool breakVAL = haveVp and ta.crossunder(close, val)
 bool rejectVAH = haveVp and high >= vah and close < vah and close[1] <= vah
 bool rejectVAL = haveVp and low <= val and close > val and close[1] >= val
 
+float atrNow = ta.atr(atrLen)
+float barChg = math.abs(close - close[1])
+bool highChg = not na(atrNow) and atrNow > 0 and barChg >= atrNow * atrMult
+float volAvg = ta.sma(volume, volLen)
+bool highVol = volMult <= 0 or (volAvg > 0 and volume >= volAvg * volMult)
+bool bullBar = not needBody or close > open
+bool bearBar = not needBody or close < open
+bool leftValueUp   = not fromInside or inVA[1]
+bool leftValueDown = not fromInside or inVA[1]
+bool havePrevVa = not na(prevVah) and not na(prevVal)
+
+bool buyPrev  = sigPrev and havePrevVa and ta.crossover(close, prevVah) and highChg and highVol and bullBar
+bool sellPrev = sigPrev and havePrevVa and ta.crossunder(close, prevVal) and highChg and highVol and bearBar
+bool buyCurr  = sigCurr and breakVAH and highChg and highVol and bullBar and leftValueUp
+bool sellCurr = sigCurr and breakVAL and highChg and highVol and bearBar and leftValueDown
+bool buySig   = showSignals and (buyPrev or buyCurr) and not (sellPrev or sellCurr)
+bool sellSig  = showSignals and (sellPrev or sellCurr) and not (buyPrev or buyCurr)
+
 string locTxt = not haveVp ? "n/a" : inVA ? "Inside value" : aboveVAH ? "Above VAH" : "Below VAL"
 color locCol  = not haveVp ? color.gray : inVA ? colGrn : aboveVAH ? colOrg : colRed
 
@@ -201,8 +230,10 @@ bgcolor(bgVpStatus and haveVp ? (inVA ? color.new(colGrn, 94) : color.new(colRed
 plotshape(showMarks and testPoc ? poc : na, title = "POC test", style = shape.diamond, location = location.absolute, size = size.tiny, color = colPoc, text = "POC")
 plotshape(showMarks and breakVAH, title = "VAH break", style = shape.triangleup, location = location.belowbar, size = size.tiny, color = colGrn, text = "VAH")
 plotshape(showMarks and breakVAL, title = "VAL break", style = shape.triangledown, location = location.abovebar, size = size.tiny, color = colRed, text = "VAL")
+plotshape(buySig, title = "BUY", text = "BUY", style = shape.labelup, location = location.belowbar, size = size.small, color = color.new(#0022FC, 0), textcolor = color.white)
+plotshape(sellSig, title = "SELL", text = "SELL", style = shape.labeldown, location = location.abovebar, size = size.small, color = color.new(color.maroon, 0), textcolor = color.white)
 
-var table dash = table.new(position.top_right, 2, 8, bgcolor = color.new(color.white, 8), border_width = 1, border_color = color.new(color.gray, 40))
+var table dash = table.new(position.top_right, 2, 10, bgcolor = color.new(color.white, 8), border_width = 1, border_color = color.new(color.gray, 40))
 
 if barstate.islast and showTable
     table.cell(dash, 0, 0, "Volume Profile", text_color = color.black, text_halign = text.align_left, text_size = size.normal)
@@ -212,13 +243,17 @@ if barstate.islast and showTable
     f_dashCell(dash, 3, "VAH", haveVp ? str.tostring(vah, format.mintick) : "n/a", colVah)
     f_dashCell(dash, 4, "VAL", haveVp ? str.tostring(val, format.mintick) : "n/a", colVal)
     f_dashCell(dash, 5, "Near POC", nearPoc ? "YES" : "no", nearPoc ? colPoc : color.gray)
-    f_dashCell(dash, 6, "VAH break", breakVAH ? "YES" : "no", breakVAH ? colGrn : color.gray)
-    f_dashCell(dash, 7, "VAL break", breakVAL ? "YES" : "no", breakVAL ? colRed : color.gray)
+    f_dashCell(dash, 6, "High change", highChg ? "YES" : "no", highChg ? colGrn : color.gray)
+    f_dashCell(dash, 7, "High volume", highVol ? "YES" : "no", highVol ? colGrn : color.gray)
+    f_dashCell(dash, 8, "BUY", buySig ? "YES" : "no", buySig ? colGrn : color.gray)
+    f_dashCell(dash, 9, "SELL", sellSig ? "YES" : "no", sellSig ? colRed : color.gray)
 else if barstate.islast and not showTable
-    table.clear(dash, 0, 0, 1, 7)
+    table.clear(dash, 0, 0, 1, 9)
 
 alertcondition(testPoc, "POC test", "Price traded through session POC")
 alertcondition(breakVAH, "Break above VAH", "Price closed above Value Area High")
 alertcondition(breakVAL, "Break below VAL", "Price closed below Value Area Low")
 alertcondition(rejectVAH, "VAH rejection", "Wick above VAH, close back inside value")
 alertcondition(rejectVAL, "VAL rejection", "Wick below VAL, close back inside value")
+alertcondition(buySig, "BUY strong VAH break", "Strong high-change break above value area high")
+alertcondition(sellSig, "SELL strong VAL break", "Strong high-change break below value area low")
