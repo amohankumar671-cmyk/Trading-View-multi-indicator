@@ -2,10 +2,10 @@
 
 Two overlays in the repo root:
 
-- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0). This file is unchanged.
+- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily and weekly **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0).
 - [`volume_profile.pine`](volume_profile.pine) — Session **volume profile** (POC / VAH / VAL) and **VP BUY / SELL**. Add this as a second script.
 
-## CPR (Daily only)
+## CPR (Daily)
 
 Inputs:
 - Select Pivot Mode: Manual
@@ -16,7 +16,19 @@ Inputs:
 
 Daily CPR follows **CPR by KGS**: dotted circle plots, blue CPR band, green R1–R4, red S1–S4, black Prev Day High/Low. Price-scale labels use those plot titles (Daily TC, Daily Pivot, Daily BC, …).
 
-Weekly / monthly / yearly / next-period CPR are removed.
+## Weekly CPR
+
+Same layout as daily, from the **previous completed week**:
+
+- Show Weekly CPR (Manual) — TC, Pivot, BC
+- Show Prev Weekly High
+- Show Prev Weekly Low
+- Show Weekly R1–R4 / S1–S4
+- Line width **3**
+- Default color **pink**; each weekly line has its own color picker
+- Drawn across each week (open → close), with labels, same CPR math as daily (previous week’s high / low / close)
+
+Monthly / yearly / next-period CPR are not included.
 
 ## Camarilla
 
