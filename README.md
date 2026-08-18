@@ -1,8 +1,8 @@
 # TradingView multi-indicator
 
-File: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
-
-Daily **CPR** (KGS-style), **Camarilla** (S3/R3 like the Pivots dialog), **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0).
+Files:
+- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0).
+- [`volume_profile_checker.pine`](volume_profile_checker.pine) — Session **volume profile** (POC / VAH / VAL) with checks against VWAP and CPR from the suite.
 
 ## CPR (Daily only)
 
@@ -16,6 +16,22 @@ Inputs:
 Daily CPR follows **CPR by KGS**: dotted circle plots, blue CPR band, green R1–R4, red S1–S4, black Prev Day High/Low. Price-scale labels use those plot titles (Daily TC, Daily Pivot, Daily BC, …).
 
 Weekly / monthly / yearly / next-period CPR are removed.
+
+## Volume Profile Checker
+
+File: [`volume_profile_checker.pine`](volume_profile_checker.pine)
+
+Intraday **session volume profile** built from the same daily session, VWAP, and CPR helpers as the suite. Use it on 1–15 minute charts (a daily bar has no profile to build).
+
+It:
+- Splits the session high–low into rows and drops each bar’s volume into the rows it traded through
+- Marks **POC** (highest-volume row), **VAH** / **VAL** (70% value area by default), and a right-edge histogram
+- Keeps **previous session** POC / VAH / VAL as dotted circles
+- **Checks** whether price is inside value, testing POC, or breaking VAH/VAL
+- **Checks confluence** with daily VWAP and CPR (VWAP near POC, CPR pivot inside value, optional Camarilla S3/R3 vs VAL/VAH)
+- Shows a status table and alertconditions for those checks
+
+Paste it as a second indicator, or use it alone with CPR/VWAP overlays enabled.
 
 ## Camarilla
 
@@ -34,4 +50,4 @@ Original AlphaTrend by KivancOzbilgic (MPL 2.0). Defaults match the published sc
 
 ## Add to TradingView
 
-Paste the `.pine` file into Pine Editor → Save → Add to chart.
+Paste a `.pine` file into Pine Editor → Save → Add to chart. Use `cpr_vwap_camarilla_suite.pine` for CPR / Camarilla / VWAP / MAs / AlphaTrend, and `volume_profile_checker.pine` when you need session volume-profile levels and confluence checks.
