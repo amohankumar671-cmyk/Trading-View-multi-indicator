@@ -1,8 +1,8 @@
 # TradingView multi-indicator
 
-Files:
-- [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) — Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, and **AlphaTrend** (KivancOzbilgic, MPL 2.0). No volume profile.
-- [`volume_profile.pine`](volume_profile.pine) — Session **volume profile** (POC / VAH / VAL) as a separate overlay.
+File: [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine)
+
+Daily **CPR** (KGS-style), **Camarilla**, **VWAP**, **moving averages**, **AlphaTrend** (KivancOzbilgic, MPL 2.0), and **volume profile** (POC / VAH / VAL) in one overlay. Turn volume profile off with **Show volume profile**.
 
 ## CPR (Daily only)
 
@@ -34,23 +34,14 @@ Original AlphaTrend by KivancOzbilgic (MPL 2.0). Defaults match the published sc
 
 ## Volume Profile
 
-File: [`volume_profile.pine`](volume_profile.pine)
+In the same file (inputs group **VOLUME PROFILE**). Best on 1–15 minute charts:
 
-Add this as a **second** indicator. It is not part of the CPR suite.
+- Session **POC**, **VAH**, **VAL**, histogram, previous-session levels
+- Checks: inside value, POC test, VAH/VAL break
+- **VP BUY / VP SELL** on a strong break (bar change ≥ ATR × multiplier and volume ≥ average). Default source is **previous session** VAH/VAL
 
-Intraday **session volume profile** on 1–15 minute charts:
-- Splits the session high–low into rows and drops each bar’s volume into the rows it traded through
-- Marks **POC** (highest-volume row), **VAH** / **VAL** (70% value area by default), and a right-edge histogram
-- Keeps **previous session** POC / VAH / VAL as dotted circles
-- Checks whether price is inside value, testing POC, or breaking VAH/VAL
-- **BUY / SELL** on a *strong* break: close leaves value, bar change ≥ ATR × multiplier, and volume ≥ average (defaults use **previous session** VAH/VAL because today’s levels still move)
-- Status table and alerts for those events
-
-These signals are a filter for imbalance after value, not a complete system. False breaks are common at the open and around news; use a stop (for example back inside the value area).
+These signals are a filter, not a complete system. False breaks are common at the open and around news.
 
 ## Add to TradingView
 
-Paste a `.pine` file into Pine Editor → Save → Add to chart.
-
-- CPR / Camarilla / VWAP / MAs / AlphaTrend: `cpr_vwap_camarilla_suite.pine`
-- Volume profile: `volume_profile.pine`
+Paste [`cpr_vwap_camarilla_suite.pine`](cpr_vwap_camarilla_suite.pine) into Pine Editor → Save → Add to chart.

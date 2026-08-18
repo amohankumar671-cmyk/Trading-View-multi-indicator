@@ -1,5 +1,15 @@
 //@version=6
-indicator("CPR Indicator", shorttitle = "CPR", overlay = true, max_lines_count = 500, max_labels_count = 500)
+indicator("CPR Indicator", shorttitle = "CPR", overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 500)
+
+type VpResult
+    float poc
+    float vah
+    float val
+    int pocI
+    int loI
+    int hiI
+    float tot
+    float maxV
 
 // =============================================================================
 // Helpers
@@ -110,11 +120,75 @@ f_camLevel(bool on, float px, color col, int w, string name, bool showLab, bool 
             curLab := na
     ln
 
+f_fillProfile(array<float> highs, array<float> lows, array<float> vols, array<float> prof, int nBins, float sL, float sH) =>
+    array.fill(prof, 0.0)
+    float rng = sH - sL
+    int n = array.size(highs)
+    if rng > 0 and n > 0
+        float binSz = rng / nBins
+        for i = 0 to n - 1
+            float bh = array.get(highs, i)
+            float bl = array.get(lows, i)
+            float bv = array.get(vols, i)
+            int i0 = int((bl - sL) / binSz)
+            int i1 = int((bh - sL) / binSz)
+            i0 := math.max(0, math.min(nBins - 1, i0))
+            i1 := math.max(0, math.min(nBins - 1, i1))
+            if bh >= sH
+                i1 := nBins - 1
+            int span = math.max(1, i1 - i0 + 1)
+            float share = bv / span
+            for b = i0 to i1
+                array.set(prof, b, array.get(prof, b) + share)
+    rng > 0 ? rng / nBins : 0.0
+
+f_pocVa(array<float> prof, int nBins, float sL, float binSz, float vaPct) =>
+    int pocI = 0
+    float maxV = array.get(prof, 0)
+    float tot = 0.0
+    for b = 0 to nBins - 1
+        float v = array.get(prof, b)
+        tot += v
+        if v > maxV
+            maxV := v
+            pocI := b
+    float target = tot * vaPct / 100.0
+    float acc = array.get(prof, pocI)
+    int loI = pocI
+    int hiI = pocI
+    int guard = 0
+    while acc < target and guard < nBins
+        guard += 1
+        float below = loI > 0 ? array.get(prof, loI - 1) : -1.0
+        float above = hiI < nBins - 1 ? array.get(prof, hiI + 1) : -1.0
+        if above >= below and hiI < nBins - 1
+            hiI += 1
+            acc += array.get(prof, hiI)
+        else if loI > 0
+            loI -= 1
+            acc += array.get(prof, loI)
+        else if hiI < nBins - 1
+            hiI += 1
+            acc += array.get(prof, hiI)
+        else
+            break
+    float pocPx = sL + (pocI + 0.5) * binSz
+    float valPx = sL + loI * binSz
+    float vahPx = sL + (hiI + 1) * binSz
+    VpResult.new(pocPx, vahPx, valPx, pocI, loI, hiI, tot, maxV)
+
+f_dashCell(table t, int r, string k, string v, color vc) =>
+    table.cell(t, 0, r, k, text_color = color.gray, text_halign = text.align_left, text_size = size.small)
+    table.cell(t, 1, r, v, text_color = vc, text_halign = text.align_right, text_size = size.small)
+
 colBlue = #2962FF
 colBlk  = #000000
 colGrn  = #089981
 colRed  = #F23645
 colOrg  = #ff9800
+colPoc  = #e91e63
+colVah  = #26a69a
+colVal  = #ab47bc
 
 // =============================================================================
 // ------- CPR (Daily only) -------
@@ -223,6 +297,40 @@ atShowSignals = input.bool(true, "Show Signals?", group = gAt)
 atNoVolume    = input.bool(false, "Change calculation (no volume data)?", group = gAt)
 
 // =============================================================================
+// ------- VOLUME PROFILE -------
+// =============================================================================
+gVp = "------- VOLUME PROFILE -------"
+showVp     = input.bool(true, "Show volume profile", group = gVp)
+vpBins     = input.int(24, "Rows", minval = 8, maxval = 48, group = gVp)
+vpVaPct    = input.float(70.0, "Value area %", minval = 50.0, maxval = 95.0, step = 1.0, group = gVp)
+vpWidth    = input.int(18, "Histogram width (bars)", minval = 4, maxval = 80, group = gVp)
+showHist   = input.bool(true, "Show histogram", group = gVp)
+showPoc    = input.bool(true, "Show POC", inline = "poc", group = gVp)
+showVahVal = input.bool(true, "Show VAH / VAL", inline = "poc", group = gVp)
+showPrevVp = input.bool(true, "Show previous session POC / VAH / VAL", group = gVp)
+showVaFill = input.bool(true, "Shade value area", group = gVp)
+histVaCol  = input.color(color.new(#26a69a, 55), "VA bin", inline = "hist", group = gVp)
+histOutCol = input.color(color.new(#787b86, 70), "Outside bin", inline = "hist", group = gVp)
+histPocCol = input.color(color.new(#e91e63, 35), "POC bin", inline = "hist", group = gVp)
+
+gChk = "------- VOLUME CHECKS -------"
+nearPct    = input.float(0.12, "Near POC %", minval = 0.01, maxval = 1.0, step = 0.01, tooltip = "Price is near POC when the distance is within this percent of price.", group = gChk)
+bgVpStatus = input.bool(true, "Background: inside / outside value area", group = gChk)
+showTable  = input.bool(true, "Show status table", group = gChk)
+showMarks  = input.bool(true, "Mark POC tests and VA breaks", group = gChk)
+
+gSig = "------- VP BUY / SELL -------"
+vpShowSignals = input.bool(true, "Show BUY / SELL on strong breaks", group = gSig)
+sigPrev       = input.bool(true, "Break previous session VAH / VAL", tooltip = "More stable. Buy = close breaks above yesterday's VAH. Sell = close breaks below yesterday's VAL.", group = gSig)
+sigCurr       = input.bool(false, "Break current session VAH / VAL", tooltip = "Noisier because today's VAH/VAL still move. Off by default.", group = gSig)
+atrLen        = input.int(14, "ATR length", minval = 1, group = gSig)
+atrMult       = input.float(0.5, "Min bar change vs ATR", minval = 0.1, step = 0.1, tooltip = "High-change filter: |close - close[1]| must be at least this times ATR so tiny pokes do not fire.", group = gSig)
+volLen        = input.int(20, "Volume average length", minval = 1, group = gSig)
+volMult       = input.float(1.2, "Min volume vs average", minval = 0.0, step = 0.1, tooltip = "Break bar volume must be at least this times SMA(volume). Set 0 to ignore volume.", group = gSig)
+needBody      = input.bool(true, "Require bullish / bearish close vs open", group = gSig)
+fromInside    = input.bool(true, "Current-session break must leave value", tooltip = "For current VAH/VAL signals, the previous close must be inside the value area.", group = gSig)
+
+// =============================================================================
 // Daily levels
 // =============================================================================
 [dH, dL, dC] = f_prevDay()
@@ -318,6 +426,140 @@ int O2 = ta.barssince(sellSignalk[1])
 plotshape(showAT and buySignalk and atShowSignals and O1 > K2 ? AlphaTrend[2] * 0.9999 : na, title = "AT BUY", text = "BUY", location = location.absolute, style = shape.labelup, size = size.tiny, color = color.new(#0022FC, 0), textcolor = color.new(color.white, 0))
 plotshape(showAT and sellSignalk and atShowSignals and O2 > K1 ? AlphaTrend[2] * 1.0001 : na, title = "AT SELL", text = "SELL", location = location.absolute, style = shape.labeldown, size = size.tiny, color = color.new(color.maroon, 0), textcolor = color.new(color.white, 0))
 
+// =============================================================================
+// Volume profile
+// =============================================================================
+var array<float> sessH = array.new_float()
+var array<float> sessL = array.new_float()
+var array<float> sessV = array.new_float()
+var array<float> prof  = array.new_float()
+var float prevPoc = na
+var float prevVah = na
+var float prevVal = na
+
+if barstate.isfirst
+    array.clear(prof)
+    for i = 0 to vpBins - 1
+        array.push(prof, 0.0)
+
+if newDay and array.size(sessH) > 0
+    float pH = array.max(sessH)
+    float pL = array.min(sessL)
+    float pBin = f_fillProfile(sessH, sessL, sessV, prof, vpBins, pL, pH)
+    if pBin > 0
+        VpResult prevR = f_pocVa(prof, vpBins, pL, pBin, vpVaPct)
+        prevPoc := prevR.poc
+        prevVah := prevR.vah
+        prevVal := prevR.val
+    array.clear(sessH)
+    array.clear(sessL)
+    array.clear(sessV)
+
+array.push(sessH, high)
+array.push(sessL, low)
+array.push(sessV, vol)
+
+float sH = array.max(sessH)
+float sL = array.min(sessL)
+float binSz = f_fillProfile(sessH, sessL, sessV, prof, vpBins, sL, sH)
+float poc = na
+float vah = na
+float val = na
+int pocI = 0
+int loI = 0
+int hiI = 0
+float totV = 0.0
+float maxBinV = 0.0
+if binSz > 0
+    VpResult r = f_pocVa(prof, vpBins, sL, binSz, vpVaPct)
+    poc := r.poc
+    vah := r.vah
+    val := r.val
+    pocI := r.pocI
+    loI := r.loI
+    hiI := r.hiI
+    totV := r.tot
+    maxBinV := r.maxV
+
+plot(showVp and showPoc ? poc : na, "POC", color = colPoc, linewidth = 2)
+plot(showVp and showVahVal ? vah : na, "VAH", color = colVah, linewidth = 2)
+plot(showVp and showVahVal ? val : na, "VAL", color = colVal, linewidth = 2)
+pVah = plot(showVp and showVaFill ? vah : na, "VAH fill", color = color.new(colVah, 100), display = display.none)
+pVal = plot(showVp and showVaFill ? val : na, "VAL fill", color = color.new(colVal, 100), display = display.none)
+fill(pVah, pVal, color = showVp and showVaFill ? color.new(#26a69a, 90) : na, title = "Value area")
+plot(showVp and showPrevVp ? prevPoc : na, "Prev POC", color = color.new(colPoc, 30), style = kgs, linewidth = 2)
+plot(showVp and showPrevVp ? prevVah : na, "Prev VAH", color = color.new(colVah, 30), style = kgs, linewidth = 2)
+plot(showVp and showPrevVp ? prevVal : na, "Prev VAL", color = color.new(colVal, 30), style = kgs, linewidth = 2)
+
+var array<box> vpBoxes = array.new<box>()
+if barstate.islast
+    while array.size(vpBoxes) > 0
+        box.delete(array.pop(vpBoxes))
+    if showVp and showHist and binSz > 0 and maxBinV > 0
+        for b = 0 to vpBins - 1
+            float vRow = array.get(prof, b)
+            int w = math.max(1, int(math.round(vRow / maxBinV * vpWidth)))
+            float y1 = sL + b * binSz
+            float y2 = y1 + binSz
+            color bc = b == pocI ? histPocCol : (b >= loI and b <= hiI ? histVaCol : histOutCol)
+            box bx = box.new(bar_index - w, y2, bar_index + 1, y1, xloc = xloc.bar_index, border_color = color.new(bc, 20), bgcolor = bc, text = b == pocI ? "POC" : "")
+            array.push(vpBoxes, bx)
+
+float nearAbs = nz(close) * nearPct / 100.0
+bool haveVp   = not na(poc) and not na(vah) and not na(val)
+bool inVA     = haveVp and close <= vah and close >= val
+bool aboveVAH = haveVp and close > vah
+bool nearPoc  = haveVp and math.abs(close - poc) <= nearAbs
+bool testPoc  = nearPoc and (low <= poc and high >= poc)
+bool breakVAH = haveVp and ta.crossover(close, vah)
+bool breakVAL = haveVp and ta.crossunder(close, val)
+bool rejectVAH = haveVp and high >= vah and close < vah and close[1] <= vah
+bool rejectVAL = haveVp and low <= val and close > val and close[1] >= val
+
+float atrNow = ta.atr(atrLen)
+float barChg = math.abs(close - close[1])
+bool highChg = not na(atrNow) and atrNow > 0 and barChg >= atrNow * atrMult
+float volAvg = ta.sma(volume, volLen)
+bool highVol = volMult <= 0 or (volAvg > 0 and volume >= volAvg * volMult)
+bool bullBar = not needBody or close > open
+bool bearBar = not needBody or close < open
+bool leftValue = not fromInside or inVA[1]
+bool havePrevVa = not na(prevVah) and not na(prevVal)
+
+bool buyPrev  = sigPrev and havePrevVa and ta.crossover(close, prevVah) and highChg and highVol and bullBar
+bool sellPrev = sigPrev and havePrevVa and ta.crossunder(close, prevVal) and highChg and highVol and bearBar
+bool buyCurr  = sigCurr and breakVAH and highChg and highVol and bullBar and leftValue
+bool sellCurr = sigCurr and breakVAL and highChg and highVol and bearBar and leftValue
+bool vpBuy    = showVp and vpShowSignals and (buyPrev or buyCurr) and not (sellPrev or sellCurr)
+bool vpSell   = showVp and vpShowSignals and (sellPrev or sellCurr) and not (buyPrev or buyCurr)
+
+string locTxt = not haveVp ? "n/a" : inVA ? "Inside value" : aboveVAH ? "Above VAH" : "Below VAL"
+color locCol  = not haveVp ? color.gray : inVA ? colGrn : aboveVAH ? colOrg : colRed
+
+bgcolor(showVp and bgVpStatus and haveVp ? (inVA ? color.new(colGrn, 94) : color.new(colRed, 94)) : na, title = "VA status")
+
+plotshape(showVp and showMarks and testPoc ? poc : na, title = "POC test", style = shape.diamond, location = location.absolute, size = size.tiny, color = colPoc, text = "POC")
+plotshape(showVp and showMarks and breakVAH, title = "VAH break", style = shape.triangleup, location = location.belowbar, size = size.tiny, color = colGrn, text = "VAH")
+plotshape(showVp and showMarks and breakVAL, title = "VAL break", style = shape.triangledown, location = location.abovebar, size = size.tiny, color = colRed, text = "VAL")
+plotshape(vpBuy, title = "VP BUY", text = "VP BUY", style = shape.labelup, location = location.belowbar, size = size.small, color = color.new(#0022FC, 0), textcolor = color.white)
+plotshape(vpSell, title = "VP SELL", text = "VP SELL", style = shape.labeldown, location = location.abovebar, size = size.small, color = color.new(color.maroon, 0), textcolor = color.white)
+
+var table dash = table.new(position.top_right, 2, 10, bgcolor = color.new(color.white, 8), border_width = 1, border_color = color.new(color.gray, 40))
+if barstate.islast and showVp and showTable
+    table.cell(dash, 0, 0, "Volume Profile", text_color = color.black, text_halign = text.align_left, text_size = size.normal)
+    table.cell(dash, 1, 0, totV == 0 ? "no volume" : str.tostring(vpVaPct, "#") + "% VA", text_color = color.black, text_halign = text.align_right, text_size = size.small)
+    f_dashCell(dash, 1, "Location", locTxt, locCol)
+    f_dashCell(dash, 2, "POC", haveVp ? str.tostring(poc, format.mintick) : "n/a", colPoc)
+    f_dashCell(dash, 3, "VAH", haveVp ? str.tostring(vah, format.mintick) : "n/a", colVah)
+    f_dashCell(dash, 4, "VAL", haveVp ? str.tostring(val, format.mintick) : "n/a", colVal)
+    f_dashCell(dash, 5, "Near POC", nearPoc ? "YES" : "no", nearPoc ? colPoc : color.gray)
+    f_dashCell(dash, 6, "High change", highChg ? "YES" : "no", highChg ? colGrn : color.gray)
+    f_dashCell(dash, 7, "High volume", highVol ? "YES" : "no", highVol ? colGrn : color.gray)
+    f_dashCell(dash, 8, "VP BUY", vpBuy ? "YES" : "no", vpBuy ? colGrn : color.gray)
+    f_dashCell(dash, 9, "VP SELL", vpSell ? "YES" : "no", vpSell ? colRed : color.gray)
+else if barstate.islast and (not showVp or not showTable)
+    table.clear(dash, 0, 0, 1, 9)
+
 alertcondition(showVWAP and ta.crossover(close, vwapVal), "Cross above VWAP", "Price crossed above VWAP")
 alertcondition(showVWAP and ta.crossunder(close, vwapVal), "Cross below VWAP", "Price crossed below VWAP")
 alertcondition(showDCpr and ta.crossover(close, dTC), "Break above Daily CPR", "Price broke above Daily TC")
@@ -335,3 +577,10 @@ alertcondition(showAT and ta.crossunder(high, AlphaTrend), title = "Candle Cross
 alertcondition(showAT and ta.cross(close[1], AlphaTrend[1]), title = "Price Cross Alert After Bar Close", message = "Price - AlphaTrend Crossing!")
 alertcondition(showAT and ta.crossover(low[1], AlphaTrend[1]), title = "Candle CrossOver Alarm After Bar Close", message = "LAST BAR is ABOVE ALPHATREND!")
 alertcondition(showAT and ta.crossunder(high[1], AlphaTrend[1]), title = "Candle CrossUnder Alarm After Bar Close", message = "LAST BAR is BELOW ALPHATREND!")
+alertcondition(showVp and testPoc, "POC test", "Price traded through session POC")
+alertcondition(showVp and breakVAH, "Break above VAH", "Price closed above Value Area High")
+alertcondition(showVp and breakVAL, "Break below VAL", "Price closed below Value Area Low")
+alertcondition(showVp and rejectVAH, "VAH rejection", "Wick above VAH, close back inside value")
+alertcondition(showVp and rejectVAL, "VAL rejection", "Wick below VAL, close back inside value")
+alertcondition(vpBuy, "VP BUY strong VAH break", "Strong high-change break above value area high")
+alertcondition(vpSell, "VP SELL strong VAL break", "Strong high-change break below value area low")
