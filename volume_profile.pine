@@ -1,5 +1,5 @@
 //@version=6
-indicator("Volume Profile", shorttitle = "VP", overlay = true, max_boxes_count = 500, max_labels_count = 100, max_lines_count = 100)
+indicator("Volume Profile", shorttitle = "VP", overlay = true, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 500)
 
 // Daily-session volume profile only. Keep CPR / Camarilla / VWAP in
 // cpr_vwap_camarilla_suite.pine and add this script as a second overlay.
@@ -75,6 +75,59 @@ f_dashCell(table t, int r, string k, string v, color vc) =>
     table.cell(t, 0, r, k, text_color = color.gray, text_halign = text.align_left, text_size = size.small)
     table.cell(t, 1, r, v, text_color = vc, text_halign = text.align_right, text_size = size.small)
 
+// One horizontal segment per session. On a new day the old line is frozen;
+// the live line is moved, not redrawn as a circle on every bar.
+f_vpLevel(bool on, float px, color col, int w, string sty, string name, bool newDay, int t0, int lookback, bool showLab) =>
+    var line ln = na
+    var label curLab = na
+    var line[] hist = array.new<line>()
+    var label[] labs = array.new<label>()
+    int tNow = time
+    if not on or na(px)
+        if not na(ln)
+            line.delete(ln)
+            ln := na
+        if not na(curLab)
+            label.delete(curLab)
+            curLab := na
+        while array.size(hist) > 0
+            line.delete(array.pop(hist))
+        while array.size(labs) > 0
+            label.delete(array.pop(labs))
+    else
+        if newDay and not na(ln)
+            line.set_xy1(ln, line.get_x1(ln), px[1])
+            line.set_xy2(ln, time[1], px[1])
+            line.set_extend(ln, extend.none)
+            array.push(hist, ln)
+            if showLab
+                array.push(labs, label.new(line.get_x1(ln), px[1], name, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.white, 100), textcolor = col, size = size.tiny))
+            while array.size(hist) > lookback
+                line.delete(array.shift(hist))
+            while array.size(labs) > lookback
+                label.delete(array.shift(labs))
+            ln := line.new(t0, px, tNow, px, xloc = xloc.bar_time, extend = extend.none, color = col, style = sty, width = w)
+        else if na(ln)
+            ln := line.new(t0, px, tNow, px, xloc = xloc.bar_time, extend = extend.none, color = col, style = sty, width = w)
+        else
+            line.set_xy1(ln, t0, px)
+            line.set_xy2(ln, tNow, px)
+            line.set_extend(ln, extend.none)
+            line.set_color(ln, col)
+            line.set_style(ln, sty)
+            line.set_width(ln, w)
+        if showLab
+            if na(curLab)
+                curLab := label.new(t0, px, name, xloc = xloc.bar_time, style = label.style_label_right, color = color.new(color.white, 100), textcolor = col, size = size.tiny)
+            else
+                label.set_xy(curLab, t0, px)
+                label.set_text(curLab, name)
+                label.set_textcolor(curLab, col)
+        else if not na(curLab)
+            label.delete(curLab)
+            curLab := na
+    ln
+
 colGrn = #089981
 colRed = #F23645
 colOrg = #ff9800
@@ -122,11 +175,16 @@ var array<float> prof  = array.new_float()
 var float prevPoc = na
 var float prevVah = na
 var float prevVal = na
+var int sessT0 = time
+int vpLookback = 15
 
 if barstate.isfirst
     array.clear(prof)
     for i = 0 to vpBins - 1
         array.push(prof, 0.0)
+
+if newDay
+    sessT0 := time
 
 if newDay and array.size(sessH) > 0
     float pH = array.max(sessH)
@@ -167,17 +225,36 @@ if binSz > 0
     totV := r.tot
     maxV := r.maxV
 
-plot(showPoc ? poc : na, "POC", color = colPoc, linewidth = 2)
-plot(showVahVal ? vah : na, "VAH", color = colVah, linewidth = 2)
-plot(showVahVal ? val : na, "VAL", color = colVal, linewidth = 2)
-pVah = plot(showVaFill ? vah : na, "VAH fill", color = color.new(colVah, 100), display = display.none)
-pVal = plot(showVaFill ? val : na, "VAL fill", color = color.new(colVal, 100), display = display.none)
-fill(pVah, pVal, color = showVaFill ? color.new(#26a69a, 90) : na, title = "Value area")
+plot(poc, "POC", color = colPoc, display = display.data_window + display.status_line)
+plot(vah, "VAH", color = colVah, display = display.data_window + display.status_line)
+plot(val, "VAL", color = colVal, display = display.data_window + display.status_line)
+plot(prevPoc, "Prev POC", color = colPoc, display = display.data_window + display.status_line)
+plot(prevVah, "Prev VAH", color = colVah, display = display.data_window + display.status_line)
+plot(prevVal, "Prev VAL", color = colVal, display = display.data_window + display.status_line)
 
-kgs = plot.style_circles
-plot(showPrevVp ? prevPoc : na, "Prev POC", color = color.new(colPoc, 30), style = kgs, linewidth = 2)
-plot(showPrevVp ? prevVah : na, "Prev VAH", color = color.new(colVah, 30), style = kgs, linewidth = 2)
-plot(showPrevVp ? prevVal : na, "Prev VAL", color = color.new(colVal, 30), style = kgs, linewidth = 2)
+f_vpLevel(showPoc, poc, colPoc, 2, line.style_solid, "POC", newDay, sessT0, vpLookback, true)
+f_vpLevel(showVahVal, vah, colVah, 2, line.style_solid, "VAH", newDay, sessT0, vpLookback, true)
+f_vpLevel(showVahVal, val, colVal, 2, line.style_solid, "VAL", newDay, sessT0, vpLookback, true)
+f_vpLevel(showPrevVp, prevPoc, colPoc, 1, line.style_dotted, "Prev POC", newDay, sessT0, vpLookback, true)
+f_vpLevel(showPrevVp, prevVah, colVah, 1, line.style_dotted, "Prev VAH", newDay, sessT0, vpLookback, true)
+f_vpLevel(showPrevVp, prevVal, colVal, 1, line.style_dotted, "Prev VAL", newDay, sessT0, vpLookback, true)
+
+var box vaBox = na
+if newDay and not na(vaBox)
+    box.delete(vaBox)
+    vaBox := na
+bool canFillVa = showVaFill and not na(vah) and not na(val)
+if canFillVa
+    if na(vaBox)
+        vaBox := box.new(sessT0, vah, time, val, xloc = xloc.bar_time, border_color = color.new(color.white, 100), bgcolor = color.new(#26a69a, 90))
+    else
+        box.set_left(vaBox, sessT0)
+        box.set_right(vaBox, time)
+        box.set_top(vaBox, vah)
+        box.set_bottom(vaBox, val)
+else if not na(vaBox)
+    box.delete(vaBox)
+    vaBox := na
 
 var array<box> vpBoxes = array.new<box>()
 if barstate.islast
@@ -227,13 +304,14 @@ color locCol  = not haveVp ? color.gray : inVA ? colGrn : aboveVAH ? colOrg : co
 
 bgcolor(bgVpStatus and haveVp ? (inVA ? color.new(colGrn, 94) : color.new(colRed, 94)) : na, title = "VA status")
 
-plotshape(showMarks and testPoc ? poc : na, title = "POC test", style = shape.diamond, location = location.absolute, size = size.tiny, color = colPoc, text = "POC")
+bool testPocOnce = testPoc and not testPoc[1]
+plotshape(showMarks and testPocOnce ? poc : na, title = "POC test", style = shape.diamond, location = location.absolute, size = size.tiny, color = colPoc, text = "POC")
 plotshape(showMarks and breakVAH, title = "VAH break", style = shape.triangleup, location = location.belowbar, size = size.tiny, color = colGrn, text = "VAH")
 plotshape(showMarks and breakVAL, title = "VAL break", style = shape.triangledown, location = location.abovebar, size = size.tiny, color = colRed, text = "VAL")
 plotshape(buySig, title = "BUY", text = "BUY", style = shape.labelup, location = location.belowbar, size = size.small, color = color.new(#0022FC, 0), textcolor = color.white)
 plotshape(sellSig, title = "SELL", text = "SELL", style = shape.labeldown, location = location.abovebar, size = size.small, color = color.new(color.maroon, 0), textcolor = color.white)
 
-var table dash = table.new(position.top_right, 2, 10, bgcolor = color.new(color.white, 8), border_width = 1, border_color = color.new(color.gray, 40))
+var table dash = table.new(position.top_right, 2, 13, bgcolor = color.new(color.white, 8), border_width = 1, border_color = color.new(color.gray, 40))
 
 if barstate.islast and showTable
     table.cell(dash, 0, 0, "Volume Profile", text_color = color.black, text_halign = text.align_left, text_size = size.normal)
@@ -242,13 +320,16 @@ if barstate.islast and showTable
     f_dashCell(dash, 2, "POC", haveVp ? str.tostring(poc, format.mintick) : "n/a", colPoc)
     f_dashCell(dash, 3, "VAH", haveVp ? str.tostring(vah, format.mintick) : "n/a", colVah)
     f_dashCell(dash, 4, "VAL", haveVp ? str.tostring(val, format.mintick) : "n/a", colVal)
-    f_dashCell(dash, 5, "Near POC", nearPoc ? "YES" : "no", nearPoc ? colPoc : color.gray)
-    f_dashCell(dash, 6, "High change", highChg ? "YES" : "no", highChg ? colGrn : color.gray)
-    f_dashCell(dash, 7, "High volume", highVol ? "YES" : "no", highVol ? colGrn : color.gray)
-    f_dashCell(dash, 8, "BUY", buySig ? "YES" : "no", buySig ? colGrn : color.gray)
-    f_dashCell(dash, 9, "SELL", sellSig ? "YES" : "no", sellSig ? colRed : color.gray)
+    f_dashCell(dash, 5, "Prev POC", na(prevPoc) ? "n/a" : str.tostring(prevPoc, format.mintick), colPoc)
+    f_dashCell(dash, 6, "Prev VAH", na(prevVah) ? "n/a" : str.tostring(prevVah, format.mintick), colVah)
+    f_dashCell(dash, 7, "Prev VAL", na(prevVal) ? "n/a" : str.tostring(prevVal, format.mintick), colVal)
+    f_dashCell(dash, 8, "Near POC", nearPoc ? "YES" : "no", nearPoc ? colPoc : color.gray)
+    f_dashCell(dash, 9, "High change", highChg ? "YES" : "no", highChg ? colGrn : color.gray)
+    f_dashCell(dash, 10, "High volume", highVol ? "YES" : "no", highVol ? colGrn : color.gray)
+    f_dashCell(dash, 11, "BUY", buySig ? "YES" : "no", buySig ? colGrn : color.gray)
+    f_dashCell(dash, 12, "SELL", sellSig ? "YES" : "no", sellSig ? colRed : color.gray)
 else if barstate.islast and not showTable
-    table.clear(dash, 0, 0, 1, 9)
+    table.clear(dash, 0, 0, 1, 12)
 
 alertcondition(testPoc, "POC test", "Price traded through session POC")
 alertcondition(breakVAH, "Break above VAH", "Price closed above Value Area High")
