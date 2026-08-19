@@ -150,7 +150,6 @@ histPocCol = input.color(color.new(#e91e63, 35), "POC bin", inline = "hist", gro
 
 gChk = "------- VOLUME CHECKS -------"
 nearPct    = input.float(0.12, "Near POC %", minval = 0.01, maxval = 1.0, step = 0.01, tooltip = "Price is near POC when the distance is within this percent of price.", group = gChk)
-bgVpStatus = input.bool(true, "Background: inside / outside value area", group = gChk)
 showTable  = input.bool(true, "Show status table", group = gChk)
 showMarks  = input.bool(true, "Mark POC tests and VA breaks", group = gChk)
 
@@ -301,8 +300,6 @@ bool sellSig  = showSignals and (sellPrev or sellCurr) and not (buyPrev or buyCu
 
 string locTxt = not haveVp ? "n/a" : inVA ? "Inside value" : aboveVAH ? "Above VAH" : "Below VAL"
 color locCol  = not haveVp ? color.gray : inVA ? colGrn : aboveVAH ? colOrg : colRed
-
-bgcolor(bgVpStatus and haveVp ? (inVA ? color.new(colGrn, 94) : color.new(colRed, 94)) : na, title = "VA status")
 
 bool testPocOnce = testPoc and not testPoc[1]
 plotshape(showMarks and testPocOnce ? poc : na, title = "POC test", style = shape.diamond, location = location.absolute, size = size.tiny, color = colPoc, text = "POC")
