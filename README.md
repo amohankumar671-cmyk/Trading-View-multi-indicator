@@ -39,8 +39,10 @@ File: [`volume_profile.pine`](volume_profile.pine)
 
 Add it **separately** (Pine Editor → Save → Add to chart). Use on 1–15 minute charts.
 
-- Session **POC**, **VAH**, **VAL**, histogram, previous-session levels
-- Checks: inside value, POC test, VAH/VAL break
+- Session **POC**, **VAH**, **VAL** as one solid line per session (not a plot on every bar)
+- Previous-session **POC / VAH / VAL** as **dotted** lines for the current session only (the same line is stretched as new candles print; it is not a new circle on each bar)
+- Histogram, value-area shade, status table (including previous-session levels)
+- Checks: inside value, first POC test of a touch, VAH/VAL break
 - **BUY / SELL** on a strong break (bar change ≥ ATR × multiplier and volume ≥ average). Default source is **previous session** VAH/VAL
 
 These signals are a filter, not a complete system. False breaks are common at the open and around news.
